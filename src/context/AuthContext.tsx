@@ -318,6 +318,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     googleEmail?: string
   ): Promise<boolean> => {
     try {
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
       
@@ -433,4 +434,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow user write only if NOT altering subscription status or plan fields
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionStatus', 'subscriptionPlan', 'subscriptionPeriodEnd', 'stripeCustomerId', 'stripeSubscriptionId']));
+    }
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Only backend Admin SDK can write subscription records
+    }
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

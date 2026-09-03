@@ -1,0 +1,10 @@
+{
+  "name": "Remix Echora 1",
+  "description": "App completa per l\u0027allenamento della voce: esercizi di canto guidati con pianoforte, rilevatore di intonazione in tempo reale, test dell\u0027estensione vocale e coach AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

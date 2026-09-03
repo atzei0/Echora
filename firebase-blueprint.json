@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User profiles and vocal coaching stats",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "provider": { "type": "string" },
+        "emailVerified": { "type": "boolean" },
+        "xp": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "vocalLevel": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "subscriptionStatus": { "type": "string" },
+        "subscriptionPlan": { "type": "string" },
+        "subscriptionPeriodEnd": { "type": "string" },
+        "stripeCustomerId": { "type": "string" },
+        "stripeSubscriptionId": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    }
+  }
+}

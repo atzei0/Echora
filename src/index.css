@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-brand {
+    font-family: 'Cormorant Garamond', 'Instrument Serif', Georgia, serif;
+  }
+  .font-instrument {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+  .font-syne {
+    font-family: 'Syne', sans-serif;
+  }
+}
+

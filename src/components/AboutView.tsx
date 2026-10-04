@@ -1,83 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Award, CheckCircle2, ArrowRight, BookOpen, Music, Heart, Star, Quote, MessageSquare, Plus, X, ThumbsUp, ShieldCheck, ChevronDown, ExternalLink } from 'lucide-react';
+import {
+  Sparkles,
+  BookOpen,
+  Heart,
+  Star,
+  MessageSquare,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  CheckCircle2,
+  Check
+} from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import echoraLogo from '../assets/images/echora_logo.jpeg';
+import { DEFAULT_REVIEWS, ReviewItem } from '../data/reviews';
+import { ReviewsCarousel } from './ReviewsCarousel';
 
-const francescaImg = "/src/assets/images/francesca_originale.png";
-
-interface ReviewItem {
-  id: string;
-  author: string;
-  rating: number;
-  date: string;
-  dateEn?: string;
-  tag: string;
-  tagEn?: string;
-  comment: string;
-  commentEn?: string;
-  likes: number;
-}
-
-const DEFAULT_REVIEWS: ReviewItem[] = [
-  {
-    id: 'rev-silvia-g',
-    author: 'Silvia G.',
-    rating: 5,
-    date: 'Recensione Allievo',
-    dateEn: 'Student Review',
-    tag: 'Lezioni di Canto Online',
-    tagEn: 'Online Singing Lessons',
-    comment: "Penso che Francesca sia un'insegnante meravigliosa. Ho iniziato un percorso con lei da ormai 2 mesi e sento di essere migliorata notevolmente, ti insegna ad ascoltarti e a conoscere bene la tua voce. Utilizza un linguaggio super semplice e ti fa capire tutto al meglio. Mi sento di consigliarla a chiunque come insegnante ma anche come persona, chi ti infonde tranquillità nel fare ciò che ti spaventa e soprattutto che ti mette a tuo agio è la cosa più importante per quanto mi riguarda e lei è la persona indicata!\n\nTutta meritata!",
-    commentEn: "I think Francesca is a wonderful teacher. I started studying with her 2 months ago and I already feel significantly improved; she teaches you to listen to yourself and truly know your voice. She uses super simple, clear language and makes everything easy to understand. I highly recommend her to anyone both as a coach and as a person — someone who instills calm in doing what scares you and makes you feel completely at ease is the most important thing, and she is the absolute right person!\n\nFully deserved!",
-    likes: 12,
-  },
-  {
-    id: 'rev-diletta-g',
-    author: 'Diletta G.',
-    rating: 5,
-    date: 'Recensione Allievo',
-    dateEn: 'Student Review',
-    tag: 'Lezioni di Canto Online',
-    tagEn: 'Online Singing Lessons',
-    comment: "Potrei dirti ti ringrazio perché mi stai insegnando la tecnica del canto, ma questo non ti renderebbe giustizia, perché per quanto sia indispensabile e tu sia sempre molto competente in questo, da insegnante so che non è solo questo a rendere bravo un insegnante.\n\nQuindi ti dico che ti ringrazio per aver reso possibile il sogno che avevo fin da quando avevo 5 anni - cantare. Mi stai aiutando a tirare fuori la mia voce, quella che ho sempre soffocato per vergogna (sto imparando persino a fregarmene di cosa potrebbero pensare i miei vicini!)\n\nTutto questo senza mai giudicarmi, ma trovando sempre la soluzione adatta a me. Questo è ciò che mi ha fatto subito fidare di te e per una persona diffidente e con una cattiva esperienza passata in ambito musicale, questo è tutt'altro che scontato. Quindi, semplicemente, grazie!",
-    commentEn: "I could say thank you for teaching me vocal technique, but that wouldn't do you justice — because as essential as technique is and as competent as you are, as a teacher myself I know that's not the only thing that makes a great instructor.\n\nSo I thank you for making the dream I had since I was 5 years old possible: singing. You are helping me bring out my real voice, which I always smothered out of embarrassment (I'm even learning not to care what neighbors might think!)\n\nAll of this without ever judging me, but always finding the right tailored solution for me. This made me trust you immediately, and for someone distrustful with bad past music experiences, that is anything but given. So, simply, thank you!",
-    likes: 18,
-  },
-  {
-    id: 'rev-chiara-m',
-    author: 'Chiara M.',
-    rating: 5,
-    date: 'Recensione Allievo',
-    dateEn: 'Student Review',
-    tag: 'Lezioni di Canto Online',
-    tagEn: 'Online Singing Lessons',
-    comment: "Grazie perché mi hai guidata in questo mio percorso con grande professionalità, dedizione, serietà e, nello stesso tempo, rendendo lo studio leggero, rilassante e spontaneo, senza mai farmi sentire quella sensazione di \"obbligo\" che spesso può emergere durante lo studio di una nuova disciplina.\n\nGrazie per le importanti nozioni che mi hai lasciato, per le spiegazioni fornite sempre in maniera chiara, utilizzando metafore semplici che hanno aiutato a capire senza alcun problema i movimenti e gli esercizi da eseguire.\n\nGrazie per la pazienza ed il sostegno emotivo e la comprensione quando ci sono state \"quelle giornate no\" in cui, comunque, mi hai guidata a fare altre tipologie di esercizio in modo da valorizzare ogni lezione facendomi sentire sempre a mio agio e mai \"indietro\".\n\nMa, soprattutto, grazie perché sei una persona meravigliosa, disponibile, gentile ed è stato un piacere affrontare questo percorso insieme.",
-    commentEn: "Thank you for guiding me with great professionalism, dedication, and care, while simultaneously keeping our practice lighthearted, relaxing, and spontaneous, never making me feel that sense of \"chore\" that often arises when learning a new discipline.\n\nThank you for the essential knowledge you shared, for explaining concepts clearly using simple metaphors that helped me easily understand movements and exercises.\n\nThank you for your patience, emotional support, and understanding on \"off days\", adapting exercises so every lesson was valuable, keeping me comfortable and never feeling left behind.\n\nAbove all, thank you for being a wonderful, available, and kind person — it's a true pleasure taking this journey together.",
-    likes: 15,
-  },
-  {
-    id: 'rev-giulia-m',
-    author: 'Giulia M.',
-    rating: 5,
-    date: 'Recensione Allievo',
-    dateEn: 'Student Review',
-    tag: 'Lezioni di Canto Online',
-    tagEn: 'Online Singing Lessons',
-    comment: "Dopo molte perplessità dovute alle mie insicurezze e al fatto che mi sentivo vecchia per ricominciare a prendere lezioni a 34 anni, sono ormai arrivata a iniziare il quarto percorso argento.\n\nLo consiglierei a chiunque, Francesca ha un ottimo metodo di insegnamento che non annoia mai e soprattutto che permette di scegliere liberamente quale canzoni studiare, assecondando anche le idee più pazze!\n\nHo già imparato moltissime cose sempre con il sorriso e sentendomi sempre a mio agio e penso di aver già fatto moltissimi progressi su quelli che erano i miei obiettivi iniziali, anche se ho ancora molto da studiare!\n\nOrmai è uno dei miei momenti preferiti della settimana e non lo mollo più, grazie Franci!",
-    commentEn: "After many doubts due to my insecurities and feeling too old to restart singing lessons at 34, I am now starting my fourth course!\n\nI would recommend her to anyone. Francesca has a great teaching method that never gets boring, and above all allows you to freely choose which songs to study, welcoming even the craziest ideas!\n\nI have already learned so much always with a smile and feeling completely at ease, making immense progress towards my goals even though I still have a lot to study!\n\nIt is now one of my favorite moments of the week and I'm not letting go, thank you Franci!",
-    likes: 14,
-  },
-];
+// Images of Francesca for bio & slideshow
+import francescaOriginaleImg from '../assets/images/francesca_originale.png';
+import francescaCoachImg from '../assets/images/francesca_vocal_coach_1786203954996.jpg';
+import francescaStageImg from '../assets/images/francesca_exact_stage_photo_1786207127777.jpg';
+import francescaStageMicImg from '../assets/images/francesca_stage_mic_1786207013067.jpg';
+import francescaNielafrehImg from '../assets/images/francesca_nielafreh_mic_1786207249077.jpg';
 
 interface AboutViewProps {
   onNavigate: (tab: string) => void;
 }
 
+const SLIDESHOW_PHOTOS = [
+  { src: francescaCoachImg, alt: 'Francesca Vocal Coach' },
+  { src: francescaStageImg, alt: 'Francesca sul palco' },
+  { src: francescaStageMicImg, alt: 'Francesca live set' },
+  { src: francescaNielafrehImg, alt: 'Francesca in studio' },
+  { src: francescaOriginaleImg, alt: 'Francesca ritratto' },
+];
+
 export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const isEn = language === 'en';
-  const { user, openAuthModal } = useAuth();
+  const { user } = useAuth();
 
   const [reviews, setReviews] = useState<ReviewItem[]>(() => {
     try {
@@ -89,10 +54,6 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
     return DEFAULT_REVIEWS;
   });
 
-  const avgRating = reviews.length > 0
-    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
-    : '5.0';
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStudiOpen, setIsStudiOpen] = useState(false);
   const [newFullName, setNewFullName] = useState('');
@@ -100,6 +61,24 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
   const [newTag, setNewTag] = useState('Lezioni di Canto Online');
   const [newComment, setNewComment] = useState('');
   const [submittedMessage, setSubmittedMessage] = useState(false);
+
+  // Slideshow state
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlideIndex((prev) => (prev + 1) % SLIDESHOW_PHOTOS.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handlePrevSlide = () => {
+    setCurrentSlideIndex((prev) => (prev === 0 ? SLIDESHOW_PHOTOS.length - 1 : prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setCurrentSlideIndex((prev) => (prev + 1) % SLIDESHOW_PHOTOS.length);
+  };
 
   useEffect(() => {
     try {
@@ -116,10 +95,10 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
   }, [user, isModalOpen]);
 
   const handleOpenReviewModal = () => {
-    if (!user) {
-      openAuthModal('login');
-      return;
+    if (user && !newFullName) {
+      setNewFullName(user.name || '');
     }
+    setSubmittedMessage(false);
     setIsModalOpen(true);
   };
 
@@ -127,26 +106,26 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
     e.preventDefault();
     if (!newFullName.trim() || !newComment.trim()) return;
 
-    // Extract first name only for public display
-    const rawName = newFullName.trim();
-    const firstName = rawName.split(/\s+/)[0] || rawName;
+    const parts = newFullName.trim().split(' ');
+    const publicDisplayName = parts[0] + (parts.length > 1 ? ` ${parts[parts.length - 1].charAt(0).toUpperCase()}.` : '');
 
-    const item: ReviewItem = {
-      id: Date.now().toString(),
-      author: firstName,
+    const newRev: ReviewItem = {
+      id: `rev-${Date.now()}`,
+      author: publicDisplayName,
       rating: newRating,
-      date: isEn ? 'Just now' : 'Appena pubblicata',
+      date: isEn ? 'Verified Student' : 'Allievo Verificato',
       tag: newTag,
       comment: newComment.trim(),
-      likes: 0,
+      likes: 1,
     };
 
-    setReviews((prev) => [item, ...prev]);
-    setNewFullName('');
-    setNewComment('');
+    setReviews([newRev, ...reviews]);
     setSubmittedMessage(true);
+
     setTimeout(() => {
-      setSubmittedMessage(false);
+      setNewFullName('');
+      setNewComment('');
+      setNewRating(5);
       setIsModalOpen(false);
     }, 1500);
   };
@@ -170,7 +149,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
             <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-sky-500 via-cyan-400 to-blue-600 p-1 shadow-xl shadow-sky-500/20 shrink-0">
               <div className="w-full h-full bg-slate-950 rounded-full overflow-hidden">
                 <img
-                  src={francescaImg}
+                  src={francescaOriginaleImg}
                   alt="Francesca Vocal Coach"
                   className="w-full h-full object-cover object-[35%_50%] scale-125 rounded-full"
                   referrerPolicy="no-referrer"
@@ -251,47 +230,43 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
                   </div>
 
                   <div className="space-y-1 pt-2 border-t border-slate-700/50">
-                    <p className="font-bold text-white text-xs uppercase tracking-wider">{isEn ? 'Masterclasses & Workshops (2016 - 2019)' : 'Masterclass e seminari (2016 - 2019)'}</p>
-                    <ul className="list-disc list-inside text-slate-300 space-y-0.5 text-xs pl-1 leading-relaxed">
-                      <li>{isEn ? 'Vocal Masterclass with Gianna Montecalvo' : 'Masterclass di canto con Gianna Montecalvo'}</li>
-                      <li>{isEn ? 'Vocal Masterclass with Cheryl Porter' : 'Masterclass di canto con Cheryl Porter'}</li>
-                      <li>{isEn ? 'Singing Technique & Interpretation Masterclass with Liane Carroll - 2017' : 'Masterclass di Canto, Tecnica e Interpretazione con Liane Carroll - 2017'}</li>
-                      <li>{isEn ? 'TC Helicon Loop Station Course with Giuliana Lostia - 2018' : 'Corso Loop Station TC Helicon - Scuola Civica di Quartu con Giuliana Lostia - 2018'}</li>
-                      <li>{isEn ? 'Sardinian Folk Singing Masterclass with Claudia Aru - 2018' : 'Masterclass di Canto Sardo con Claudia Aru - 2018'}</li>
-                      <li>{isEn ? 'Indian Music Masterclass with Varijashree Venugopal - 2018' : 'Masterclass di Musica Indiana con Varijashree Venugopal - 2018'}</li>
-                      <li>{isEn ? 'Reaper DAW Masterclass with Francesco Bonalume - 2019' : 'Masterclass Reaperiani con Francesco Bonalume 2019'}</li>
-                    </ul>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-700/50">
-                    <p className="font-semibold text-slate-200 text-xs">
-                      {isEn ? 'Private lessons program with Sergio Calafiura 2025' : 'Percorso di lezioni private con Sergio Calafiura 2025'}
+                    <p className="font-bold text-white text-xs">{isEn ? 'Continuous Training:' : 'Formazione Continua:'}</p>
+                    <p className="text-slate-300 text-xs leading-relaxed">
+                      {isEn
+                        ? 'Masterclasses and certified training in SOVT techniques, voice recovery, vocal acoustics, and modern voice pedagogies.'
+                        : 'Masterclass e percorsi certificati su tecniche SOVT, riabilitazione della voce artistica, acustica vocale e pedagogie del canto moderno.'}
                     </p>
                   </div>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Stats Bar */}
-          <div className="relative z-20 grid grid-cols-3 gap-2 pt-5 border-t border-slate-800/80 text-center">
-            <div className="p-3 rounded-xl bg-slate-800/50">
-              <p className="text-xl sm:text-2xl font-black text-sky-400">2010</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{isEn ? 'Started Studies' : 'Inizio Studi'}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-800/50">
-              <p className="text-xl sm:text-2xl font-black text-cyan-400">2019</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{isEn ? 'Jazz Degree' : 'Laurea Canto Jazz'}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-800/50">
-              <p className="text-xl sm:text-2xl font-black text-emerald-400">2021</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{isEn ? 'Vocal Coaching' : 'Vocal Coaching'}</p>
+            {/* 3 Riquadri Piccolini delle pietre miliari SOTTO Studi & Formazione */}
+            <div className="grid grid-cols-3 gap-2.5 text-center pt-1">
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-sky-400/40 shadow-md space-y-1">
+                <span className="text-lg sm:text-xl font-black text-sky-300">2008</span>
+                <p className="text-[10px] sm:text-xs text-slate-200 font-bold leading-tight">
+                  {isEn ? 'Started studying' : 'Inizio studi'}
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-cyan-400/40 shadow-md space-y-1">
+                <span className="text-lg sm:text-xl font-black text-cyan-300">2019</span>
+                <p className="text-[10px] sm:text-xs text-slate-200 font-bold leading-tight">
+                  {isEn ? 'Conservatory Degree' : 'Laurea Conservatorio'}
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-indigo-400/40 shadow-md space-y-1">
+                <span className="text-lg sm:text-xl font-black text-indigo-300">2021</span>
+                <p className="text-[10px] sm:text-xs text-slate-200 font-bold leading-tight">
+                  {isEn ? 'Vocal Coaching' : 'Vocal Coaching'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Detailed Story / Bio */}
-        <div className="lg:col-span-7 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-4 shadow-xl">
+        {/* Bio Story Section: "LA MIA STORIA E FILOSOFIA" */}
+        <div className="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-xl space-y-6">
           <div className="space-y-4">
             <h3 className="text-2xl font-extrabold text-white flex items-center gap-2">
               <BookOpen className="w-6 h-6 text-sky-400" />
@@ -305,296 +280,229 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
 
               <p>
                 {isEn
-                  ? 'I started studying vocal technique in 2010, and in 2019 I graduated in Jazz Singing at the Conservatorio of Cagliari. Since 2021 I teach singers how to manage their voice, overcome vocal obstacles, and above all, give themselves space to make mistakes, learn new things, and bring new life to their voice.'
-                  : 'Ho iniziato a studiare tecnica vocale nel 2010 e nel 2019 mi sono laureata in Canto Jazz al Conservatorio di Cagliari. Dal 2021 insegno alle persone cosa fare della propria voce, come affrontare e risolvere i propri problemi vocali e, soprattutto, come darsi lo spazio di fare errori per imparare cose nuove e dare nuova vita alla propria voce.'}
+                  ? 'I started studying vocal technique in 2010, and in 2019 I graduated in Jazz Singing at the Conservatorio of Cagliari. Since 2021 I teach my students how to tackle and solve their vocal challenges and, above all, give themselves space to make mistakes to learn new things, giving new life to their voice.'
+                  : 'Ho iniziato a studiare tecnica vocale nel 2010 e nel 2019 mi sono laureata in Canto Jazz al Conservatorio di Cagliari. Dal 2021 insegno ai miei allievi come affrontare e risolvere i propri problemi vocali e soprattutto come darsi lo spazio di fare errori per imparare cose nuove dando nuova vita alla propria voce.'}
               </p>
 
               <p>
                 {isEn
-                  ? 'Over the years I continue to study, experiment, and compare different vocal methodologies, understanding what truly works and turning everything I learn into something concrete and useful.'
-                  : 'Negli anni continuo a studiare, sperimentare e confrontare approcci diversi, cercando di capire che cosa funzioni davvero e come trasformare tutto quello che imparo in qualcosa di utile e concreto.'}
+                  ? 'To this day, I continue to study, experiment, and compare different vocal technique approaches, understanding what truly works and turning everything I learn into something concrete and useful.'
+                  : 'Tutt\'ora continuo a studiare, sperimentare e confrontare approcci diversi di tecnica vocale, cercando di capire che cosa funzioni davvero e come trasformare tutto quello che imparo in qualcosa di utile e concreto.'}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Perché ho creato Echora - Full Width Section */}
-      <div className="bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-slate-900/90 border border-slate-800/90 hover:border-sky-500/30 transition-all rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-sky-400/60 shadow-lg shadow-sky-500/30 bg-slate-950 shrink-0">
-              <img
-                src={echoraLogo}
-                alt="Echora Logo"
-                className="w-full h-full object-cover scale-110"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-2.5">
-              <span>{isEn ? 'Why I Created Echora' : 'Perché ho creato Echora'}</span>
-            </h3>
-          </div>
+      {/* Point 11: Sezione sotto "LA MIA STORIA E FILOSOFIA" con Slideshow foto a sinistra + Testo a destra + Pulsante */}
+      <div className="bg-gradient-to-br from-slate-900/95 via-slate-900/80 to-slate-950/95 border border-sky-500/30 rounded-3xl p-6 sm:p-10 shadow-2xl">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Spazio per le foto sulla sinistra: Slideshow automatico */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center space-y-3">
+            <div className="relative group w-full max-w-sm aspect-[4/5] rounded-3xl overflow-hidden border-2 border-sky-400/50 shadow-2xl bg-slate-950">
+              {SLIDESHOW_PHOTOS.map((photo, idx) => (
+                <img
+                  key={idx}
+                  src={photo.src}
+                  alt={photo.alt}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+                    idx === currentSlideIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                  }`}
+                  referrerPolicy="no-referrer"
+                />
+              ))}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start text-slate-300 text-sm sm:text-base leading-relaxed">
-            <div className="space-y-3.5">
-              <p>
-                {isEn
-                  ? 'Right from my earliest singing lessons, I recorded custom practice exercises for my students so they had audio tools to practice with at home.'
-                  : 'Fin dall\'inizio delle mie lezioni ho iniziato a registrare gli esercizi per i miei studenti, così che avessero del materiale con cui studiare a casa.'}
-              </p>
+              {/* Navigation Arrows for manual control */}
+              <button
+                type="button"
+                onClick={handlePrevSlide}
+                className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-950/70 hover:bg-slate-900 text-white border border-slate-700/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-lg"
+                title="Foto precedente"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
 
-              <p>
-                {isEn
-                  ? 'I did it because I know firsthand what it feels like to feel lost in front of your own voice: not knowing which exercises to do, how to execute them, for how long, and whether you are doing them correctly.'
-                  : 'L\'ho fatto anche perché io per prima so cosa significa essere disorientata davanti alla propria voce: non sapere quali esercizi fare, come farli, per quanto tempo e soprattutto se li si sta facendo nel modo giusto.'}
-              </p>
+              <button
+                type="button"
+                onClick={handleNextSlide}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-950/70 hover:bg-slate-900 text-white border border-slate-700/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-lg"
+                title="Foto successiva"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
 
-              <p>
-                {isEn
-                  ? 'Over time I realized those audio recordings could become something much bigger.'
-                  : 'Con il tempo mi sono resa conto che quelle registrazioni potevano diventare qualcosa di più.'}
-              </p>
-
-              <p className="font-semibold text-sky-200">
-                {isEn
-                  ? 'And that is how Echora was born: a space to gather all our lesson exercises and transform them into a simple, guided practice app.'
-                  : 'Ed è così che è nato Echora: un luogo in cui raccogliere gli esercizi che facciamo a lezione e trasformarli in un\'esperienza di studio semplice e guidata.'}
-              </p>
-            </div>
-
-            <div className="space-y-4 bg-slate-950/60 p-5 sm:p-6 rounded-2xl border border-slate-800/80">
-              <ul className="space-y-2.5 text-slate-200 text-sm sm:text-base font-medium">
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
-                  <span>{isEn ? 'You don\'t have to worry about playing piano notes.' : 'Non devi pensare a suonare le note.'}</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
-                  <span>{isEn ? 'You don\'t have to memorize every single vocal exercise.' : 'Non devi ricordarti tutti gli esercizi.'}</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
-                  <span>{isEn ? 'You don\'t have to stress over technical details.' : 'Non devi ricordarti ogni dettaglio.'}</span>
-                </li>
-              </ul>
-
-              <div className="text-center py-2">
-                <span className="inline-block text-base sm:text-lg font-black text-sky-300 bg-sky-950/80 border border-sky-500/40 px-5 py-2.5 rounded-xl shadow-lg">
-                  {isEn ? 'Echora takes care of guiding you.' : 'Echora pensa a guidarti.'}
-                </span>
+              {/* Indicator dots at bottom */}
+              <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center space-x-1.5 z-10">
+                {SLIDESHOW_PHOTOS.map((_, dotIdx) => (
+                  <button
+                    key={dotIdx}
+                    type="button"
+                    onClick={() => setCurrentSlideIndex(dotIdx)}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                      dotIdx === currentSlideIndex
+                        ? 'w-6 bg-sky-400 shadow-md shadow-sky-400/50'
+                        : 'w-2 bg-white/60 hover:bg-white'
+                    }`}
+                    aria-label={`Go to slide ${dotIdx + 1}`}
+                  />
+                ))}
               </div>
-
-              <p className="text-xs sm:text-sm text-slate-300">
-                {isEn
-                  ? 'It accompanies you step by step during the exercise, and even reminds you to lift your cheekbones when needed!'
-                  : 'Ti accompagna durante l\'esercizio e, quando serve, ti ricorda persino di alzare gli zigomi.'}
-              </p>
             </div>
           </div>
 
-          <p className="font-medium text-slate-200 bg-slate-800/40 p-4 sm:p-5 rounded-xl border border-slate-700/50 leading-relaxed text-sm sm:text-base text-center max-w-4xl mx-auto mt-4">
-            {isEn
-              ? 'Because studying your voice should leave you more space to listen, experiment, make mistakes, and discover all the awesome things your voice can do.'
-              : 'Perché studiare la voce dovrebbe lasciarti più spazio per ascoltare, sperimentare, sbagliare e scoprire tutte le cose fighissime che puoi fare con la tua voce.'}
-          </p>
-        </div>
+          {/* Paragrafo di testo sulla destra + Pulsante "Vai al mio sito" */}
+          <div className="lg:col-span-7 space-y-6 text-left">
+            <h3 className="text-2xl sm:text-4xl font-black text-white leading-snug">
+              {isEn ? 'My courses' : 'I miei corsi'}
+            </h3>
 
-        <div className="pt-6 border-t border-slate-800/80 flex items-center justify-center">
-          <button
-            onClick={() => onNavigate('pricing')}
-            className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-sky-500/25 flex items-center gap-2 transition-all group cursor-pointer"
-          >
-            <span>{isEn ? 'Choose the Annual Plan' : 'Scegli il piano annuale'}</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
+            <p className="text-slate-200 text-base sm:text-lg leading-relaxed font-medium">
+              Come Vocal Coach faccio lezioni di canto individuale in presenza e online, in cui lavoriamo sulla tecnica vocale principalmente, ma le lezioni sono costruite su misura dello studente. Sto lavorando anche a corsi di formazione per Home Recording, Creazione di Contenuti e Laboratori di gruppo.
+            </p>
+
+            <div className="pt-2">
+              <a
+                href="https://beacons.ai/nielafreh"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <span>{isEn ? 'Visit my website' : 'Vai al mio sito'}</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Three Pillars Section */}
+      {/* Point 6 & 7: "Perché ho creato Echora" (con spazio per immagine sulla destra) */}
+      <div className="bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
+        <div className="flex items-center gap-3.5 border-b border-slate-800/80 pb-4">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-sky-400/60 shadow-lg shadow-sky-500/30 bg-slate-950 shrink-0">
+            <img
+              src={echoraLogo}
+              alt="Echora Logo"
+              className="w-full h-full object-cover scale-110"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-2.5">
+            <span>{isEn ? 'Why I Created Echora' : 'Perché ho creato Echora'}</span>
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Testo a sinistra */}
+          <div className="lg:col-span-7 space-y-4 text-slate-300 text-sm sm:text-base leading-relaxed">
+            <p>
+              Quando ho iniziato a prendere lezioni di canto mi sono trovata disorientata davanti alla mia voce. Nonostante avessi un'insegnante che mi seguiva non sapevo quali esercizi fare a casa, come farli, per quanto tempo e soprattutto se li si stavo facendo nel modo giusto.
+            </p>
+
+            <p>
+              Ecco perchè fin dall'inizio del mio lavoro come insegnante ho dato dei materiali ai miei studenti per capire meglio cosa fare a casa e far sì che capissero la loro voce e diventassero indipendenti.
+            </p>
+
+            <p>
+              Con il tempo poi mi sono resa conto che queste registrazioni potevano diventare qualcosa di più...
+            </p>
+
+            <p className="font-bold text-sky-200 text-base sm:text-lg">
+              Ed è così che è nato Echora: un luogo in cui raccogliere gli esercizi che facciamo a lezione e trasformarli in un'esperienza di studio il più semplice possibile e guidata!
+            </p>
+          </div>
+
+          {/* Spazio immagine sulla destra */}
+          <div className="lg:col-span-5 flex justify-center lg:justify-end">
+            <div className="relative group max-w-xs sm:max-w-sm w-full">
+              <div className="absolute -inset-1.5 bg-gradient-to-tr from-sky-500 via-cyan-400 to-indigo-500 rounded-3xl blur-md opacity-40 group-hover:opacity-75 transition duration-500"></div>
+              <div className="relative rounded-3xl overflow-hidden border-2 border-sky-400/50 shadow-2xl bg-slate-950 aspect-[4/5]">
+                <img
+                  src={francescaStageMicImg}
+                  alt="Francesca Echora"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Point 8: Sezione “Ci pensa Echora a guidarti!” (UNICO riquadro con elenco puntato e slogan) */}
       <div className="space-y-6">
-        <div className="text-center max-w-2xl mx-auto space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">{t('aboutPillarsTitle')}</h2>
-          <p className="text-xs sm:text-sm text-slate-400">Un approccio integrato che unisce scienza vocale, ascolto e tecnologia.</p>
+        <div className="text-center max-w-3xl mx-auto space-y-2">
+          <h2 className="text-2xl sm:text-4xl font-black text-white">
+            {isEn ? 'Echora takes care of guiding you!' : 'Ci pensa Echora a guidarti!'}
+          </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-3 hover:border-sky-500/40 transition-colors">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-sky-400">
-              <Award className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">{t('pillar1Title')}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">{t('pillar1Desc')}</p>
-          </div>
+        {/* Unico Riquadro con Elenco Puntato e Slogan — più largo delle recensioni */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-sky-950/40 border border-sky-400/40 hover:border-sky-400/70 rounded-3xl p-6 sm:p-10 shadow-2xl max-w-6xl mx-auto space-y-8 transition-all">
+          <ul className="space-y-5 text-slate-100 text-sm sm:text-lg font-bold">
+            <li className="flex items-start gap-3.5">
+              <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 border border-sky-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                <Check className="w-4 h-4 stroke-[3]" />
+              </div>
+              <span>Non devi pensare a suonare le note perchè te le suona Echora!</span>
+            </li>
+            <li className="flex items-start gap-3.5">
+              <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 border border-sky-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                <Check className="w-4 h-4 stroke-[3]" />
+              </div>
+              <span>Non devi ricordarti tutti gli esercizi perchè ce li hai tutti nello stesso posto.</span>
+            </li>
+            <li className="flex items-start gap-3.5">
+              <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 border border-sky-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                <Check className="w-4 h-4 stroke-[3]" />
+              </div>
+              <span>Non devi ricordarti ogni dettaglio perchè Echora ti ricorda anche di alzare gli zigomi e piangere!</span>
+            </li>
+          </ul>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-3 hover:border-cyan-500/40 transition-colors">
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400">
-              <Music className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">{t('pillar2Title')}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">{t('pillar2Desc')}</p>
-          </div>
-
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-3 hover:border-indigo-500/40 transition-colors">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-400/30 flex items-center justify-center text-indigo-400">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">{t('pillar3Title')}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">{t('pillar3Desc')}</p>
+          {/* Slogan inserito nello stesso riquadro */}
+          <div className="pt-6 border-t border-sky-500/20 text-center">
+            <p className="text-sm sm:text-lg text-sky-300 font-extrabold italic leading-relaxed">
+              “Perchè studiare la voce dovrebbe lasciarti più spazio per sperimentare, sbagliare e scoprire tutte le cose fighissime che puoi fare con la tua voce!”
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Section: Lezioni di Canto & Laboratori con Francesca */}
-      <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+      {/* Point 9: Recensioni — Carosello Centrale */}
+      <div className="pt-4 border-t border-slate-800/80">
+        <ReviewsCarousel
+          reviews={reviews}
+          onLike={handleLike}
+          onOpenReviewModal={handleOpenReviewModal}
+          showAddButton={true}
+        />
+      </div>
+
+      {/* Point 10: Banner “Studia e Canta con me!” posizionato SOTTO la sezione delle recensioni */}
+      <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/40 rounded-3xl p-6 sm:p-10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-left">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
             <Sparkles className="w-4 h-4 text-sky-400" />
             <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-white">
-            {isEn ? 'Study & Sing with Francesca' : 'Studia e Canta con Francesca'}
+          <h3 className="text-2xl sm:text-4xl font-black text-white">
+            {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
             {isEn
-              ? 'Want 1-on-1 vocal coaching or to participate in live or online singing workshops? Discover courses and book your session on Beacons.'
-              : 'Vuoi prendere lezioni di canto con me o partecipare ai laboratori di canto in presenza e online? Scopri tutte le info, i corsi e prenota la tua sessione su Beacons.'}
+              ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
+              : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
           </p>
         </div>
         <a
           href="https://beacons.ai/nielafreh"
           target="_blank"
           rel="noopener noreferrer"
-          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 flex items-center gap-2.5 transition-all hover:scale-105 shrink-0 cursor-pointer"
+          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-sm sm:text-base shadow-xl shadow-sky-500/25 flex items-center gap-2.5 transition-all hover:scale-105 shrink-0 cursor-pointer"
         >
-          <span>{isEn ? 'Book Lessons or Workshops' : 'Prendi Lezioni o Laboratori con Me'}</span>
+          <span>{isEn ? 'Visit my website' : 'Vai al mio sito'}</span>
           <ExternalLink className="w-4 h-4" />
         </a>
-      </div>
-
-      {/* Reviews & Testimonials Section */}
-      <div className="space-y-8 pt-8 border-t border-slate-800/80">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs font-bold uppercase tracking-wider">
-              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-              <span>{isEn ? 'What people say about Francesca & Echora' : 'Dicono di Francesca ed Echora'}</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
-              {isEn ? 'Reviews & Testimonials' : 'Recensioni & Testimonianze'}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400">
-              {isEn
-                ? 'Discover experiences from students and singers who studied with me and train with the Echora app'
-                : 'Scopri le esperienze degli allievi e cantanti che hanno studiato con me e che si allenano con l\'app Echora'}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenReviewModal}
-            className="self-start sm:self-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{isEn ? 'Leave a Review' : 'Lascia una Recensione'}</span>
-          </button>
-        </div>
-
-        {/* Average Rating Bar (shown if reviews exist) */}
-        {reviews.length > 0 && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 flex items-center justify-between gap-4 shadow-xl">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-amber-400 text-2xl sm:text-3xl font-black">
-                <span>{avgRating}</span>
-                <div className="flex text-amber-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-              </div>
-              <div className="h-8 w-px bg-slate-800 hidden sm:block"></div>
-              <div className="text-xs sm:text-sm text-slate-300 font-medium">
-                {isEn ? 'Average rating based on' : 'Valutazione media basata su'}{' '}
-                <span className="text-white font-bold">
-                  {reviews.length} {isEn ? 'reviews' : 'recensioni'}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Reviews Cards Grid or Empty State */}
-        {reviews.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
-              <Star className="w-6 h-6" />
-            </div>
-            <div className="space-y-1.5 max-w-md mx-auto">
-              <h4 className="text-lg font-bold text-white">
-                {isEn ? 'No reviews yet' : 'Nessuna recensione ancora presente'}
-              </h4>
-              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                {isEn
-                  ? 'Log in to your account and share your feedback on Francesca\'s vocal lessons and the Echora web app.'
-                  : 'Effettua l\'accesso e condividi la tua recensione sulle lezioni di canto con Francesca e sulla web app Echora.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleOpenReviewModal}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs sm:text-sm shadow-lg cursor-pointer active:scale-95 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{isEn ? 'Leave the First Review' : 'Lascia la prima recensione'}</span>
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reviews.map((rev) => (
-              <div
-                key={rev.id}
-                className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4 transition-all hover:translate-y-[-2px] relative group"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-extrabold text-white text-sm flex items-center gap-1.5">
-                        <span>{rev.author}</span>
-                      </h4>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold text-sky-300 shrink-0">
-                      {rev.tag}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-1 text-amber-400">
-                    {[...Array(rev.rating)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    ))}
-                    <span className="text-[10px] text-slate-400 ml-2">
-                      {rev.date}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed italic relative pl-3 border-l-2 border-sky-500/40 whitespace-pre-line">
-                    "{isEn && rev.commentEn ? rev.commentEn : rev.comment}"
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end text-[11px] text-slate-400">
-                  <button
-                    type="button"
-                    onClick={() => handleLike(rev.id)}
-                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <ThumbsUp className="w-3 h-3 text-sky-400" />
-                    <span>{isEn ? 'Helpful' : 'Utile'} ({rev.likes})</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Modal / Popup for Adding Review */}
@@ -719,5 +627,3 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
     </div>
   );
 };
-
-

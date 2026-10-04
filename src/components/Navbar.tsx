@@ -90,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'exercises', label: t('navWarmup') },
     { id: 'workout', label: t('navWorkout') },
     { id: 'cooldown', label: t('navCooldown') },
+    { id: 'tools', label: t('navTools') },
     { id: 'about', label: t('navAbout') },
     { id: 'pricing', label: t('navPricing') },
   ];

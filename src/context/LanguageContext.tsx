@@ -10,7 +10,13 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('it');
+  const [language, setLanguageState] = useState<Language>(() => {
+    try {
+      const saved = localStorage.getItem('echora_language');
+      if (saved === 'it' || saved === 'en') return saved;
+    } catch {}
+    return 'it';
+  });
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);

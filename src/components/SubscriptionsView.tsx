@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Check, Sparkles, ShieldCheck, Zap, Lock, ArrowRight, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../lib/firebase';
 
 type PlanType = 'trial' | 'monthly' | 'quarterly' | 'annual' | 'test';
 
@@ -31,11 +32,20 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         setSuccessBanner(true);
         if (user?.id) {
           try {
-            const res = await fetch(`/api/subscription-status?userId=${encodeURIComponent(user.id)}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data?.isPremium) {
-                setVerifiedStatus(data);
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) {
+              console.warn('Utente non autenticato o token Firebase non disponibile per la verifica abbonamento.');
+            } else {
+              const res = await fetch(`/api/subscription-status?userId=${encodeURIComponent(user.id)}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data?.isPremium) {
+                  setVerifiedStatus(data);
+                }
               }
             }
           } catch (e) {
@@ -69,12 +79,20 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
     setCheckoutError(null);
 
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
+      }
+
       // Mark that user actively initiated checkout in this session
       sessionStorage.setItem('echora_pending_checkout', 'true');
 
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId: user.id,
           plan,
@@ -177,10 +195,6 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
           {language === 'en' ? 'Choose the Perfect Plan for Your Voice' : 'Scegli il Piano Perfetto per la Tua Voce'}
         </h1>
 
-        <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-          {t('pricingSubtitle')}
-        </p>
-
         {/* Guarantees Callout */}
         <div className="inline-flex items-center justify-center space-x-2 bg-sky-950/60 border border-sky-800/60 px-4 py-2 rounded-2xl text-sky-200 text-xs sm:text-sm font-semibold">
           <Zap className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse" />
@@ -188,81 +202,12 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         </div>
       </div>
 
-      {/* SECTION 1: PROVA 7 GIORNI (€0,99) */}
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
-
-          <div className="space-y-4 max-w-xl text-left relative z-10">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] sm:text-xs font-black uppercase tracking-wider">
-              <Zap className="w-3.5 h-3.5 fill-amber-300" />
-              <span>Modalità Consigliata — Prova di 7 Giorni</span>
-            </div>
-
-            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-              Prova Echora per 7 giorni a €0,99
-            </h2>
-
-            <p className="text-sm text-amber-100/90 leading-relaxed font-medium">
-              Prova Echora per 7 giorni a €0,99. Al termine della prova, si rinnova automaticamente con il piano mensile a €20/mese. Puoi annullare in qualsiasi momento.
-            </p>
-
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-200 pt-2">
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="font-semibold text-white">
-                  {language === 'en' ? 'Full platform access' : 'Accesso completo alla piattaforma'}
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-amber-300 font-bold">
-                  {language === 'en' ? 'Cancel anytime with 1 click!' : 'Annulla quando vuoi con 1 click!'}
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="w-full md:w-auto flex flex-col items-center justify-center space-y-3 relative z-10 shrink-0">
-            <div className="text-center">
-              <span className="text-4xl sm:text-5xl font-black text-amber-300">€0,99</span>
-              <p className="text-xs text-slate-400 font-medium">/ per 7 giorni</p>
-            </div>
-
-            <button
-              onClick={() => handleInitiateCheckout('trial')}
-              disabled={loadingPlan === 'trial'}
-              className="w-full sm:w-64 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {loadingPlan === 'trial' ? (
-                <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-slate-950" />
-                  <span>Inizia la Prova a €0,99</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 2: ACQUISTO DIRETTO (SENZA PROVA) */}
-      <div className="space-y-6 pt-6 max-w-6xl mx-auto">
-        <div className="text-center space-y-2">
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Oppure Acquista Direttamente un Abbonamento
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400">
-            Senza periodo di prova: l'abbonamento parte immediatamente al prezzo selezionato.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+      {/* SUBSCRIPTION PLANS: MENSILE (5€) & ANNUALE (50€) */}
+      <div className="space-y-6 pt-4 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
           
-          {/* 1. MONTHLY DIRECT CARD */}
-          <div className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative group transition-all">
+          {/* 1. MONTHLY PLAN CARD */}
+          <div className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6 shadow-xl relative group transition-all">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-black text-white">{t('monthlyPlan')}</h3>
@@ -272,12 +217,12 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               </div>
 
               <div className="flex items-baseline space-x-1">
-                <span className="text-4xl font-black text-white">20,00 €</span>
+                <span className="text-4xl font-black text-white">5,00 €</span>
                 <span className="text-slate-400 text-xs font-semibold">/ mese</span>
               </div>
 
               <p className="text-xs text-slate-400 leading-relaxed">
-                Addebito immediato di €20,00/mese. Rinnovo mensile automatico, disdici quando vuoi.
+                Addebito immediato di €5,00/mese. Rinnovo mensile automatico, disdici quando vuoi.
               </p>
 
               <div className="pt-4 border-t border-slate-800 space-y-3">
@@ -309,106 +254,40 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               ) : (
                 <>
                   <Lock className="w-4 h-4 text-sky-400" />
-                  <span>Acquista Mensile (€20)</span>
+                  <span>Acquista Mensile (€5)</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </div>
 
-          {/* 2. QUARTERLY DIRECT CARD */}
-          <div className="bg-gradient-to-b from-slate-900 via-purple-950/30 to-slate-900 border-2 border-purple-400/70 hover:border-purple-300 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-xl relative group transition-all">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black text-white">{t('quarterlyPlan')}</h3>
-                <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/40 text-[10px] font-bold uppercase tracking-wider">
-                  Risparmi 15€
-                </span>
-              </div>
-
-              <div className="flex items-baseline space-x-1">
-                <span className="text-4xl font-black text-purple-200">45,00 €</span>
-                <span className="text-slate-400 text-xs font-semibold">/ 3 mesi</span>
-              </div>
-
-              <p className="text-xs text-purple-200/90 font-medium leading-relaxed">
-                {language === 'en'
-                  ? 'Immediate charge of €45.00 that renews every 3 months or Pay in 3 installments of €15.00'
-                  : 'Addebito immediato di €45,00 che si rinnova ogni 3 mesi o Paga in 3 rate da €15,00'}
-              </p>
-
-              <div className="pt-4 border-t border-purple-800/40 space-y-3">
-                <p className="text-xs font-bold text-purple-200 uppercase tracking-wider">
-                  {language === 'en' ? 'Included in plan:' : 'Incluso nel piano:'}
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <span>{language === 'en' ? 'Full platform access' : 'Accesso completo alla piattaforma'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <span>{language === 'en' ? 'Save €15 compared to monthly' : 'Risparmi 15 € rispetto al mensile'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <span>{language === 'en' ? 'Pay in installments with Klarna or PayPal' : 'Paga a rate con Klarna o PayPal'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <span>{language === 'en' ? 'Automatic renewal every 3 months' : 'Rinnovo automatico ogni 3 mesi'}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <button
-              onClick={() => handleInitiateCheckout('quarterly')}
-              disabled={loadingPlan === 'quarterly'}
-              className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-md disabled:opacity-50 cursor-pointer"
-            >
-              {loadingPlan === 'quarterly' ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-white" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-purple-200" />
-                  <span>Acquista Trimestrale (€45)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* 3. ANNUAL DIRECT CARD */}
-          <div className="bg-gradient-to-b from-slate-900 via-sky-950/40 to-slate-900 border-2 border-sky-400/80 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative group transition-all">
+          {/* 2. ANNUAL PLAN CARD */}
+          <div className="bg-gradient-to-b from-slate-900 via-sky-950/40 to-slate-900 border-2 border-sky-400/80 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6 shadow-2xl relative group transition-all">
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 whitespace-nowrap">
               <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
-              <span>MIGLIOR VALORE (50% OFF)</span>
+              <span>DUE MESI A 0€!</span>
             </div>
 
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-black text-white">{t('annualPlan')}</h3>
-                <span className="px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/40 text-[10px] font-black uppercase tracking-wider">
-                  Risparmi 120€
-                </span>
               </div>
 
               <div className="flex items-baseline space-x-1">
                 <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-300 via-cyan-200 to-white">
-                  120,00 €
+                  50,00 €
                 </span>
                 <span className="text-sky-300 text-xs font-bold">/ anno</span>
               </div>
 
               <div className="space-y-1">
                 <p className="text-xs text-sky-200/90 font-medium leading-relaxed">
-                  {language === 'en' ? 'Equivalent to only €10.00/month' : 'Equivalente a soli €10,00/mese'}
+                  {language === 'en' ? 'Two months for €0!' : 'Due mesi a 0€!'}
                 </p>
                 <p className="text-xs text-slate-300 font-medium leading-relaxed">
                   {language === 'en' 
-                    ? 'Immediate charge of €120.00 that renews annually or Pay in 3 installments of €40.00' 
-                    : 'Addebito immediato di €120,00 che si rinnova annualmente o Paga in 3 rate da €40,00'}
+                    ? 'Immediate charge of €50.00 that renews annually or Pay in 3 installments of €16.67' 
+                    : 'Addebito immediato di €50,00 che si rinnova annualmente o Paga in 3 rate da €16,67'}
                 </p>
               </div>
 
@@ -424,7 +303,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                     <span className="font-semibold text-white">
-                      {language === 'en' ? 'Maximum savings (50% OFF)' : 'Massimo risparmio (50% OFF)'}
+                      {language === 'en' ? 'Pay today and forget about it for the whole year' : 'Lo paghi oggi e te ne dimentichi per tutto l\'anno'}
                     </span>
                   </li>
                   <li className="flex items-center gap-2">
@@ -449,7 +328,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               ) : (
                 <>
                   <Lock className="w-4 h-4 text-slate-950" />
-                  <span>Acquista Annuale (€120)</span>
+                  <span>Acquista Annuale (€50)</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

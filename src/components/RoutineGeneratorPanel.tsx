@@ -1195,20 +1195,20 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
         </>
       )}
 
-      {/* Direct 1-on-1 Coaching Card with Francesca */}
+      {/* Direct 1-on-1 Coaching Card */}
       <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-left">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
             <Sparkles className="w-4 h-4 text-sky-400" />
-            <span>{isEn ? '1-on-1 Vocal Coaching' : 'Lezioni & Coaching 1 a 1'}</span>
+            <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
           </div>
           <h3 className="text-2xl sm:text-3xl font-black text-white">
-            {isEn ? 'Study & Sing with Francesca' : 'Studia e Canta con Francesca'}
+            {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
             {isEn
-              ? 'Want personalized 1-on-1 vocal coaching or to join live singing workshops? Discover courses and book your session on Beacons.'
-              : 'Vuoi fare lezioni di canto private con me o partecipare ai laboratori di canto in presenza e online? Scopri tutte le info e prenota la tua sessione su Beacons.'}
+              ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
+              : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
           </p>
         </div>
         <a
@@ -1217,7 +1217,7 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
           rel="noopener noreferrer"
           className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 flex items-center gap-2.5 transition-all hover:scale-105 shrink-0 cursor-pointer"
         >
-          <span>{isEn ? 'Book 1-on-1 Session' : 'Prendi Lezioni o Laboratori con Me'}</span>
+          <span>{isEn ? 'Visit my website' : 'Vai al mio sito'}</span>
           <ExternalLink className="w-4 h-4" />
         </a>
       </div>

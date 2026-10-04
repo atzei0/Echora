@@ -119,19 +119,24 @@ export interface PracticeSession {
   notes?: string;
 }
 
-export interface RoutineStep {
+export interface CustomExerciseStep {
   id: string;
+  exerciseId: string;
   title: string;
-  duration: string;
-  instruction: string;
-  scaleType: ScalePatternId | 'none';
+  category: ExerciseCategory;
+  scalePattern: ScalePatternId;
   vowel: string;
-  focus: string;
+  bpm: number;
+  targetTab: 'warmup' | 'exercises' | 'workout' | 'cooldown';
+  customNotes?: string;
 }
 
-export interface CustomRoutine {
-  routineName: string;
-  description: string;
-  totalDurationMinutes: number;
-  steps: RoutineStep[];
+export interface SavedCustomRoutine {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  steps: CustomExerciseStep[];
 }
+

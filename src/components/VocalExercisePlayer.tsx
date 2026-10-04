@@ -7,6 +7,7 @@ import { InteractivePiano } from './InteractivePiano';
 import { Play, Pause, Square, Mic, MicOff, Sparkles, CheckCircle2, Zap, Music, Volume2, VolumeX, Sliders, ArrowUp, ArrowDown, ArrowUpDown, Repeat, Gauge, BookOpen, Lightbulb, ChevronDown, Target, Wind, ArrowRight, ArrowLeft, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useRoutineQueue } from '../context/RoutineQueueContext';
+import { useAuth } from '../context/AuthContext';
 
 const VOCAL_TIPS = [
   "Ricorda di sollevare gli zigomi",
@@ -360,6 +361,12 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
     hasPrevExercise,
   } = useRoutineQueue();
 
+  const { isSubscribed, openSubscriptionModal } = useAuth();
+
+  // Rules: Unsubscribed users have full access ONLY to LIP THRILL 12345
+  const isExerciseFree = (exId: string) => exId === 'lip_thrill_warmup';
+  const isPatternFree = (patId: ScalePatternId) => patId === 'five_notes';
+
   const displayCategories = allowedCategories
     ? CATEGORIES.filter((c) => allowedCategories.includes(c.id))
     : CATEGORIES;
@@ -521,6 +528,9 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
   const [selectedScalePattern, setSelectedScalePattern] = useState<ScalePatternId>(selectedExercise.scalePattern);
   const [pianoVolume, setPianoVolume] = useState<number>(0.9);
   const [metronomeVolume, setMetronomeVolume] = useState<number>(0.85);
+
+  const isCurrentExercisePlayable =
+    isSubscribed || (isExerciseFree(selectedExercise.id) && isPatternFree(selectedScalePattern));
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -1560,7 +1570,16 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                         <select
                           value={isCatSelected ? selectedExercise.id : ''}
                           onChange={(e) => {
-                            const ex = VOCAL_EXERCISES.find((item) => item.id === e.target.value);
+                            const chosenId = e.target.value;
+                            if (!isSubscribed) {
+                              openSubscriptionModal(
+                                language === 'en'
+                                  ? 'Vocal cooldown exercises are available only with an Echora subscription. Choose your subscription to unlock them!'
+                                  : 'Gli esercizi di defaticamento vocale sono disponibili solo con un abbonamento Echora. Scegli il tuo abbonamento per sbloccarli!'
+                              );
+                              return;
+                            }
+                            const ex = VOCAL_EXERCISES.find((item) => item.id === chosenId);
                             if (ex) {
                               setIsPlaying(false);
                               setActiveCategory('Defaticamento');
@@ -1576,11 +1595,18 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                               {language === 'en' ? '-- Choose an exercise --' : '-- Scegli un esercizio --'}
                             </option>
                           )}
-                          {exercisesInCat.map((ex) => (
-                            <option key={ex.id} value={ex.id} className="bg-slate-900 text-white font-bold py-1.5">
-                              {language === 'en' && ex.titleEn ? ex.titleEn : ex.title}
-                            </option>
-                          ))}
+                          {exercisesInCat.map((ex) => {
+                            const isLocked = !isSubscribed;
+                            return (
+                              <option 
+                                key={ex.id} 
+                                value={ex.id} 
+                                className={`bg-slate-900 py-1.5 ${isLocked ? 'text-slate-500 font-normal' : 'text-white font-bold'}`}
+                              >
+                                {isLocked ? `🔒 ${language === 'en' && ex.titleEn ? ex.titleEn : ex.title} (Abbonamento)` : (language === 'en' && ex.titleEn ? ex.titleEn : ex.title)}
+                              </option>
+                            );
+                          })}
                         </select>
                         <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 ${block.textColor}`}>
                           <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
@@ -1624,7 +1650,16 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                   <select
                     value={selectedExercise.category === 'SOVT' ? selectedExercise.id : ''}
                     onChange={(e) => {
-                      const ex = VOCAL_EXERCISES.find((item) => item.id === e.target.value);
+                      const chosenId = e.target.value;
+                      if (!isSubscribed && chosenId !== 'lip_thrill_warmup') {
+                        openSubscriptionModal(
+                          language === 'en'
+                            ? 'Only Lip Thrill 12345 is free. To unlock all other SOVT exercises, choose your Echora subscription.'
+                            : 'Solo il Lip Thrill 12345 è gratuito. Per sbloccare tutti gli altri esercizi SOVT, scegli il tuo abbonamento Echora.'
+                        );
+                        return;
+                      }
+                      const ex = VOCAL_EXERCISES.find((item) => item.id === chosenId);
                       if (ex) {
                         setIsPlaying(false);
                         setActiveCategory('SOVT');
@@ -1640,11 +1675,18 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                         {language === 'en' ? '-- Choose an SOVT exercise --' : '-- Scegli un esercizio SOVT --'}
                       </option>
                     )}
-                    {VOCAL_EXERCISES.filter((ex) => ex.category === 'SOVT').map((ex) => (
-                      <option key={ex.id} value={ex.id} className="bg-slate-900 text-white font-bold py-1.5">
-                        {language === 'en' && ex.titleEn ? ex.titleEn : ex.title}
-                      </option>
-                    ))}
+                    {VOCAL_EXERCISES.filter((ex) => ex.category === 'SOVT').map((ex) => {
+                      const isLocked = !isSubscribed && ex.id !== 'lip_thrill_warmup';
+                      return (
+                        <option 
+                          key={ex.id} 
+                          value={ex.id} 
+                          className={`bg-slate-900 py-1.5 ${isLocked ? 'text-slate-500 font-normal' : 'text-white font-bold'}`}
+                        >
+                          {isLocked ? `🔒 ${language === 'en' && ex.titleEn ? ex.titleEn : ex.title} (Abbonamento)` : (language === 'en' && ex.titleEn ? ex.titleEn : ex.title)}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#fa83b5]">
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
@@ -1679,7 +1721,16 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                   <select
                     value={selectedExercise.category === 'Vocalizzi' ? selectedExercise.id : ''}
                     onChange={(e) => {
-                      const ex = VOCAL_EXERCISES.find((item) => item.id === e.target.value);
+                      const chosenId = e.target.value;
+                      if (!isSubscribed) {
+                        openSubscriptionModal(
+                          language === 'en'
+                            ? 'Vocalizations are available with an Echora subscription. Choose your subscription to unlock them all!'
+                            : 'Tutti i vocalizzi sono inclusi nell\'abbonamento Echora. Solo il Lip Thrill 12345 è gratuito.'
+                        );
+                        return;
+                      }
+                      const ex = VOCAL_EXERCISES.find((item) => item.id === chosenId);
                       if (ex) {
                         setIsPlaying(false);
                         setActiveCategory('Vocalizzi');
@@ -1695,11 +1746,18 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                         {language === 'en' ? '-- Choose a vocalization --' : '-- Scegli un vocalizzo --'}
                       </option>
                     )}
-                    {VOCAL_EXERCISES.filter((ex) => ex.category === 'Vocalizzi').map((ex) => (
-                      <option key={ex.id} value={ex.id} className="bg-slate-900 text-white font-bold py-1.5">
-                        {language === 'en' && ex.titleEn ? ex.titleEn : ex.title}
-                      </option>
-                    ))}
+                    {VOCAL_EXERCISES.filter((ex) => ex.category === 'Vocalizzi').map((ex) => {
+                      const isLocked = !isSubscribed;
+                      return (
+                        <option 
+                          key={ex.id} 
+                          value={ex.id} 
+                          className={`bg-slate-900 py-1.5 ${isLocked ? 'text-slate-500 font-normal' : 'text-white font-bold'}`}
+                        >
+                          {isLocked ? `🔒 ${language === 'en' && ex.titleEn ? ex.titleEn : ex.title} (Abbonamento)` : (language === 'en' && ex.titleEn ? ex.titleEn : ex.title)}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-pink-300">
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">

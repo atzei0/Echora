@@ -1,20 +1,42 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Funzione di utilità per identificare l'elenco dei campi riservati gestiti da Stripe/Server
+    function hasPrivilegedFields(data) {
+      return data.keys().hasAny([
+        'subscriptionStatus',
+        'subscriptionPlan',
+        'subscriptionPeriodEnd',
+        'stripeCustomerId',
+        'stripeSubscriptionId'
+      ]);
+    }
+
+    // Regole per il profilo utente
     match /users/{userId} {
+      // 1. Lettura consentita esclusivamente al proprietario autenticato
       allow read: if request.auth != null && request.auth.uid == userId;
-      // Allow user write only if NOT altering subscription status or plan fields
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionStatus', 'subscriptionPlan', 'subscriptionPeriodEnd', 'stripeCustomerId', 'stripeSubscriptionId']));
-    }
-    match /subscriptions/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // Only backend Admin SDK can write subscription records
-    }
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+      // 2. Creazione consentita solo per il proprio UID, senza poter impostare campi di abbonamento privilegiati
+      allow create: if request.auth != null 
+                    && request.auth.uid == userId 
+                    && !hasPrivilegedFields(request.resource.data);
+
+      // 3. Modifica consentita solo per il proprio UID:
+      //    l'utente non può alterare nessuno dei campi privilegiati (la differenza non deve includerli)
+      allow update: if request.auth != null 
+                    && request.auth.uid == userId 
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                      'subscriptionStatus',
+                      'subscriptionPlan',
+                      'subscriptionPeriodEnd',
+                      'stripeCustomerId',
+                      'stripeSubscriptionId'
+                    ]);
+
+      // 4. Eliminazione consentita esclusivamente al proprietario
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

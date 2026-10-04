@@ -1,11 +1,11 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import Stripe from "stripe";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 dotenv.config();
 
@@ -18,11 +18,11 @@ const PORT = 3000;
 
 const PLAN_CONFIG = {
   monthly: {
-    amount: 2000,
+    amount: 500,
     interval: "month" as const,
     intervalCount: 1,
     label: "Abbonamento Mensile",
-    description: "20,00 €/mese",
+    description: "5,00 €/mese",
   },
   quarterly: {
     amount: 4500,
@@ -32,11 +32,11 @@ const PLAN_CONFIG = {
     description: "45,00 € ogni 3 mesi",
   },
   annual: {
-    amount: 12000,
+    amount: 5000,
     interval: "year" as const,
     intervalCount: 1,
     label: "Abbonamento Annuale",
-    description: "120,00 €/anno",
+    description: "50,00 €/anno",
   },
 } as const;
 
@@ -47,7 +47,15 @@ type PaidPlan = keyof typeof PLAN_CONFIG;
    Deve essere prima di express.json()
    ========================================================= */
 
-app.use("/api/webhook", express.raw({ type: "application/json" }));
+app.use(
+  "/api/webhook",
+  express.raw({
+    type: "*/*",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 /* =========================================================
    STANDARD JSON
@@ -134,6 +142,71 @@ function getAdminDb() {
     ? getFirestore(defaultApp, dbId)
     : getFirestore(defaultApp);
 }
+
+function getAdminAuth() {
+  getAdminDb();
+  const defaultApp = getApps()[0];
+  if (!defaultApp) {
+    return null;
+  }
+  return getAuth(defaultApp);
+}
+
+/* =========================================================
+   AUTHENTICATION MIDDLEWARE (FIREBASE ID TOKEN)
+   ========================================================= */
+
+interface AuthenticatedRequest extends express.Request {
+  user?: {
+    uid: string;
+    email?: string;
+    name?: string;
+  };
+}
+
+const requireAuth = async (
+  req: AuthenticatedRequest,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({
+      error: "Autenticazione richiesta: token Bearer mancante o non valido.",
+    });
+  }
+
+  const idToken = authHeader.split("Bearer ")[1]?.trim();
+
+  if (!idToken) {
+    return res.status(401).json({
+      error: "Autenticazione richiesta: token Bearer vuoto.",
+    });
+  }
+
+  const adminAuth = getAdminAuth();
+  if (!adminAuth) {
+    return res.status(500).json({
+      error: "Servizio di autenticazione non disponibile sul server.",
+    });
+  }
+
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      name: decodedToken.name,
+    };
+    next();
+  } catch (err: any) {
+    console.error("Errore verifica Firebase ID Token:", err?.message || err);
+    return res.status(401).json({
+      error: "Token di autenticazione non valido o scaduto.",
+    });
+  }
+};
 
 /* =========================================================
    IN-MEMORY FALLBACK
@@ -283,20 +356,6 @@ function isPaidPlan(
 }
 
 /* =========================================================
-   AI
-   ========================================================= */
-
-function getAIClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return null;
-  }
-
-  return new GoogleGenAI({ apiKey });
-}
-
-/* =========================================================
    HEALTH CHECK
    ========================================================= */
 
@@ -308,18 +367,29 @@ app.get("/api/health", (_req, res) => {
    CREATE STRIPE CHECKOUT SESSION
    ========================================================= */
 
-app.post("/api/create-checkout-session", async (req, res) => {
+app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const {
-      userId,
-      plan,
-      customerEmail,
-    } = req.body;
+    const userId = req.user?.uid;
 
     if (!userId) {
-      return res.status(400).json({
-        error: "ID utente mancante",
+      return res.status(401).json({
+        error: "Utente non autenticato",
       });
+    }
+
+    const {
+      plan,
+    } = req.body;
+
+    let customerEmail =
+      req.user?.email ||
+      (typeof req.body.customerEmail === "string" ? req.body.customerEmail.trim() : undefined);
+
+    if (!customerEmail) {
+      const dbProfile = await safeFirestoreGet(userId);
+      if (dbProfile?.email && typeof dbProfile.email === "string") {
+        customerEmail = dbProfile.email.trim();
+      }
     }
 
     if (
@@ -546,10 +616,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
                   "Echora — Abbonamento Mensile",
 
                 description:
-                  "20,00 €/mese dopo i 7 giorni di prova",
+                  "5,00 €/mese dopo i 7 giorni di prova",
               },
 
-              unit_amount: 2000,
+              unit_amount: 500,
 
               recurring: {
                 interval: "month",
@@ -583,10 +653,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
                 name: "Echora — Abbonamento Mensile",
 
                 description:
-                  "20,00 €/mese",
+                  "5,00 €/mese",
               },
 
-              unit_amount: 2000,
+              unit_amount: 500,
 
               recurring: {
                 interval: "month",
@@ -656,10 +726,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
                   "Echora — Abbonamento Annuale",
 
                 description:
-                  "120,00 €/anno",
+                  "50,00 €/anno",
               },
 
-              unit_amount: 12000,
+              unit_amount: 5000,
 
               recurring: {
                 interval: "year",
@@ -777,13 +847,13 @@ app.post("/api/create-checkout-session", async (req, res) => {
    CREATE CUSTOMER PORTAL SESSION
    ========================================================= */
 
-app.post("/api/create-portal-session", async (req, res) => {
+app.post("/api/create-portal-session", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user?.uid;
 
     if (!userId) {
-      return res.status(400).json({
-        error: "ID utente mancante",
+      return res.status(401).json({
+        error: "Utente non autenticato",
       });
     }
 
@@ -1253,36 +1323,45 @@ async function cancelPendingPlan(
 
 app.post("/api/webhook", async (req, res) => {
   const stripe = getStripe();
+  if (!stripe) {
+    console.error("Webhook Error: Stripe non è inizializzato sul server");
+    return res.status(500).json({
+      error: "Stripe non è inizializzato sul server.",
+    });
+  }
 
-  const signature =
-    req.headers["stripe-signature"] as string;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("Webhook Error: STRIPE_WEBHOOK_SECRET non configurato");
+    return res.status(500).json({
+      error: "Configurazione del server incompleta: STRIPE_WEBHOOK_SECRET mancante.",
+    });
+  }
 
-  const webhookSecret =
-    process.env.STRIPE_WEBHOOK_SECRET;
+  const signature = req.headers["stripe-signature"] as string;
+  if (!signature || (typeof signature === "string" && !signature.trim())) {
+    console.error("Webhook Error: Intestazione stripe-signature mancante");
+    return res.status(400).json({
+      error: "Intestazione stripe-signature mancante.",
+    });
+  }
+
+  const payload: string | Buffer = (req as any).rawBody || req.body;
+  if (!payload || (typeof payload !== "string" && !Buffer.isBuffer(payload))) {
+    console.error("Webhook Error: Corpo raw della richiesta non disponibile per la verifica");
+    return res.status(400).send(
+      "Webhook Error: Impossibile verificare la firma Stripe. Corpo della richiesta raw mancante o non valido."
+    );
+  }
 
   let event: Stripe.Event;
 
   try {
-    if (
-      stripe &&
-      webhookSecret &&
-      signature
-    ) {
-      event =
-        stripe.webhooks.constructEvent(
-          req.body,
-          signature,
-          webhookSecret
-        );
-    } else {
-      const rawString =
-        typeof req.body === "string"
-          ? req.body
-          : req.body.toString("utf8");
-
-      event =
-        JSON.parse(rawString);
-    }
+    event = stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      webhookSecret
+    );
   } catch (err: any) {
     console.error(
       `Webhook Signature Error: ${err.message}`
@@ -1943,15 +2022,14 @@ app.post("/api/webhook", async (req, res) => {
 
 app.get(
   "/api/subscription-status",
-  async (req, res) => {
+  requireAuth,
+  async (req: AuthenticatedRequest, res) => {
     try {
-      const userId =
-        req.query.userId as string;
+      const userId = req.user?.uid;
 
       if (!userId) {
-        return res.status(400).json({
-          error:
-            "ID utente mancante",
+        return res.status(401).json({
+          error: "Utente non autenticato",
         });
       }
 
@@ -2022,213 +2100,6 @@ app.get(
 
         isPremium:
           false,
-      });
-    }
-  }
-);
-
-/* =========================================================
-   VOCAL COACH
-   ========================================================= */
-
-app.post(
-  "/api/vocal-coach",
-  async (req, res) => {
-    try {
-      const {
-        message,
-        voiceType,
-        vocalRange,
-        userLevel,
-        promptContext,
-      } = req.body;
-
-      if (!message) {
-        return res.status(400).json({
-          error:
-            "Messaggio mancante",
-        });
-      }
-
-      const ai =
-        getAIClient();
-
-      if (!ai) {
-        return res.status(500).json({
-          error:
-            "Chiave API Gemini non configurata. Inserisci la tua GEMINI_API_KEY nei Segreti.",
-        });
-      }
-
-      const systemInstruction = `
-Sei Vocalis AI, un maestro di canto esperto e amichevole, specializzato in tecnica vocale, fisiologia della voce, igiene vocale, respirazione diaframmatica e interpretazione.
-
-Rispondi in italiano in modo chiaro, incoraggiante e tecnicamente accurato.
-
-Contesto utente:
-- Tipo di voce: ${voiceType || "Non specificato"}
-- Estensione: ${vocalRange || "Non specificata"}
-- Livello: ${userLevel || "Intermedio"}
-- Contesto aggiuntivo: ${promptContext || "Nessuno"}
-
-Fornisci consigli pratici, indicazioni fisiologiche utili (es. posizione della laringe, risuonatori, appoggio addominale) ed avvertimenti sulla salute vocale (evitare sforzi o raschiare la gola).
-
-Usa la formattazione markdown con punti elenco e grassetti dove utile.
-`;
-
-      const response =
-        await ai.models.generateContent({
-          model:
-            "gemini-2.5-flash",
-
-          contents: [
-            {
-              role: "user",
-
-              parts: [
-                {
-                  text:
-                    `${systemInstruction}\n\nDomanda utente: ${message}`,
-                },
-              ],
-            },
-          ],
-        });
-
-      return res.json({
-        reply:
-          response.text,
-      });
-    } catch (err: any) {
-      console.error(
-        "Errore Vocal Coach API:",
-        err
-      );
-
-      return res.status(500).json({
-        error:
-          "Impossibile elaborare la richiesta al Coach Vocale AI. " +
-          (err.message || ""),
-      });
-    }
-  }
-);
-
-/* =========================================================
-   CUSTOM ROUTINE GENERATOR
-   ========================================================= */
-
-app.post(
-  "/api/generate-routine",
-  async (req, res) => {
-    try {
-      const {
-        goal,
-        availableTimeMinutes,
-        voiceType,
-        userLevel,
-      } = req.body;
-
-      const ai =
-        getAIClient();
-
-      if (!ai) {
-        return res.status(500).json({
-          error:
-            "Chiave API Gemini non configurata.",
-        });
-      }
-
-      const prompt = `
-Crea una routine di riscaldamento ed esercizio vocale personalizzata in formato JSON.
-
-Obiettivo:
-${goal || "Riscaldamento generale"}
-
-Tempo a disposizione:
-${availableTimeMinutes || 10} minuti
-
-Tipo di voce:
-${voiceType || "Non specificato"}
-
-Livello:
-${userLevel || "Intermedio"}
-
-Rispondi ESCLUSIVAMENTE con un oggetto JSON valido (senza blocchi markdown extra) con questa struttura:
-
-{
-  "routineName": "Nome della Routine",
-  "description": "Descrizione sintetica",
-  "totalDurationMinutes": 10,
-  "steps": [
-    {
-      "id": "step1",
-      "title": "Titolo fase",
-      "duration": "2 min",
-      "instruction": "Istruzioni dettagliate su cosa fare e come posizionare la bocca/corpo",
-      "scaleType": "five_note",
-      "vowel": "AH",
-      "focus": "Appoggio, risonanza, articolazione, ecc."
-    }
-  ]
-}
-`;
-
-      const response =
-        await ai.models.generateContent({
-          model:
-            "gemini-2.5-flash",
-
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-        });
-
-      let rawText =
-        response.text || "";
-
-      rawText =
-        rawText
-          .replace(
-            /```json/g,
-            ""
-          )
-          .replace(
-            /```/g,
-            ""
-          )
-          .trim();
-
-      try {
-        const routineJson =
-          JSON.parse(rawText);
-
-        return res.json({
-          routine:
-            routineJson,
-        });
-      } catch {
-        return res.json({
-          rawReply:
-            rawText,
-        });
-      }
-    } catch (err: any) {
-      console.error(
-        "Errore Routine Generator API:",
-        err
-      );
-
-      return res.status(500).json({
-        error:
-          "Impossibile generare la routine.",
       });
     }
   }

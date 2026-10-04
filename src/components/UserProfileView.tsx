@@ -6,6 +6,7 @@ import {
   Play, Sliders, ExternalLink, Plus, FolderOpen
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../lib/firebase';
 import { VocalRangeProfile, PracticeSession, SavedRecording } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { useRoutineQueue, RoutineQueueItem } from '../context/RoutineQueueContext';
@@ -35,6 +36,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 }) => {
   const { 
     user, 
+    customRoutines: allCustomRoutines,
+    setActiveCustomRoutineId,
     updateUser, 
     sendConfirmationEmail, 
     verifyEmail,
@@ -47,26 +50,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const isEn = language === 'en';
   const { startRoutineQueue } = useRoutineQueue();
 
-  // Load custom routines saved in localStorage (strictly user-created routines)
-  const [customRoutines, setCustomRoutines] = useState<SavedCustomRoutine[]>([]);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('echora_saved_custom_routines');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setCustomRoutines(
-            parsed.filter(
-              (r) => r.steps && r.steps.length > 0 && !r.id.startsWith('preset_') && !r.id.includes('preset')
-            )
-          );
-        }
-      }
-    } catch (e) {
-      console.error('Error loading custom routines in profile:', e);
-    }
-  }, []);
+  // Synchronized custom routines (strictly user-created routines with at least 1 exercise)
+  const customRoutines = (allCustomRoutines || []).filter(
+    (r) => r && r.steps && r.steps.length > 0 && !r.id.startsWith('preset_') && !r.id.includes('preset')
+  );
 
   const handleLaunchCustomRoutine = (routine: SavedCustomRoutine) => {
     if (!routine.steps || routine.steps.length === 0) {
@@ -110,9 +97,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setLoadingPortal(true);
     setPortalError(null);
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
+      }
+
       const res = await fetch('/api/create-portal-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ userId: user.id })
       });
 
@@ -131,14 +126,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setLoadingPortal(false);
     }
   };
-
-  const presetAvatars = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
-  ];
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -411,23 +398,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   onChange={handleAvatarFileChange} 
                   className="hidden" 
                 />
-
-                <span className="text-[11px] text-slate-500">oppure scegli un avatar:</span>
-
-                <div className="flex items-center gap-2 overflow-x-auto py-1">
-                  {presetAvatars.map((url, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => updateUser({ avatarUrl: url })}
-                      className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-transform hover:scale-110 cursor-pointer ${
-                        user.avatarUrl === url ? 'border-sky-400 ring-2 ring-sky-400/50' : 'border-slate-700 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={url} alt={`Avatar ${idx}`} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -746,9 +716,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        try {
-                          localStorage.setItem('echora_active_custom_routine_id', routine.id);
-                        } catch {}
+                        setActiveCustomRoutineId(routine.id);
                         onNavigate('start', 'routine', isEn ? 'User Profile' : 'Profilo Utente');
                       }}
                       className="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"

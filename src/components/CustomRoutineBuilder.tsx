@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Exercise, ExerciseCategory, ScalePatternId } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Exercise, ExerciseCategory, ScalePatternId, CustomExerciseStep, SavedCustomRoutine } from '../types';
 import { VOCAL_EXERCISES } from '../data/exercises';
 import { ALL_SCALE_PATTERNS, getScalePatternLabel } from '../data/scalePatterns';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth, createInitialBlankRoutine } from '../context/AuthContext';
 import { useRoutineQueue, RoutineQueueItem } from '../context/RoutineQueueContext';
 import {
   Play,
@@ -31,38 +32,7 @@ import {
   Info
 } from 'lucide-react';
 
-export interface CustomExerciseStep {
-  id: string;
-  exerciseId: string;
-  title: string;
-  category: ExerciseCategory;
-  scalePattern: ScalePatternId;
-  vowel: string;
-  bpm: number;
-  targetTab: 'warmup' | 'exercises' | 'workout' | 'cooldown';
-  customNotes?: string;
-}
-
-export interface SavedCustomRoutine {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
-  steps: CustomExerciseStep[];
-}
-
-const STORAGE_KEY = 'echora_saved_custom_routines';
-const ACTIVE_ROUTINE_KEY = 'echora_active_custom_routine_id';
-
-const createInitialBlankRoutine = (isEn: boolean, index = 1): SavedCustomRoutine => ({
-  id: `custom_routine_${Date.now()}`,
-  name: isEn ? `My Custom Routine ${index}` : `La Mia Routine ${index}`,
-  description: isEn ? 'Personalized exercise sequence' : 'Componi la tua sequenza di esercizi',
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  steps: [],
-});
+export type { CustomExerciseStep, SavedCustomRoutine };
 
 interface CustomRoutineBuilderProps {
   onNavigate: (tab: string, subTool?: 'range' | 'tuner' | 'breathing' | 'routine', fromLabel?: string) => void;
@@ -72,33 +42,12 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   const { language } = useLanguage();
   const isEn = language === 'en';
   const { startRoutineQueue } = useRoutineQueue();
-
-  // Load saved routines from localStorage (strictly user-created routines, no presets)
-  const [savedRoutines, setSavedRoutines] = useState<SavedCustomRoutine[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const userOnly = parsed.filter(
-            (r) => r && r.id && !r.id.startsWith('preset_') && !r.id.includes('preset')
-          );
-          if (userOnly.length > 0) return userOnly;
-        }
-      }
-    } catch (e) {
-      console.error('Error loading custom routines:', e);
-    }
-    return [createInitialBlankRoutine(language === 'en')];
-  });
-
-  const [selectedRoutineId, setSelectedRoutineId] = useState<string>(() => {
-    try {
-      const activeId = localStorage.getItem(ACTIVE_ROUTINE_KEY);
-      if (activeId && savedRoutines.some((r) => r.id === activeId)) return activeId;
-    } catch {}
-    return savedRoutines[0]?.id || '';
-  });
+  const {
+    customRoutines: savedRoutines,
+    activeCustomRoutineId: selectedRoutineId,
+    saveCustomRoutines,
+    setActiveCustomRoutineId: setSelectedRoutineId,
+  } = useAuth();
 
   const currentRoutine =
     savedRoutines.find((r) => r.id === selectedRoutineId) || savedRoutines[0] || createInitialBlankRoutine(isEn);
@@ -112,19 +61,22 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
 
-  // Sync state when selectedRoutineId changes
+  const lastSyncedSignatureRef = useRef<string>(`${currentRoutine?.id}_${currentRoutine?.updatedAt}`);
+
+  // Sync state when selectedRoutineId or cloud-hydrated currentRoutine changes
   useEffect(() => {
     if (currentRoutine) {
-      setRoutineName(currentRoutine.name);
-      setRoutineDesc(currentRoutine.description || '');
-      setSteps(currentRoutine.steps || []);
-      try {
-        localStorage.setItem(ACTIVE_ROUTINE_KEY, currentRoutine.id);
-      } catch {}
+      const signature = `${currentRoutine.id}_${currentRoutine.updatedAt}`;
+      if (lastSyncedSignatureRef.current !== signature) {
+        lastSyncedSignatureRef.current = signature;
+        setRoutineName(currentRoutine.name);
+        setRoutineDesc(currentRoutine.description || '');
+        setSteps(currentRoutine.steps || []);
+      }
     }
-  }, [selectedRoutineId]);
+  }, [selectedRoutineId, currentRoutine]);
 
-  // Save current routine to localStorage
+  // Save current routine to Firestore & localStorage
   const handleSaveRoutine = () => {
     const updatedRoutine: SavedCustomRoutine = {
       ...currentRoutine,
@@ -134,26 +86,18 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
       steps,
     };
 
+    lastSyncedSignatureRef.current = `${updatedRoutine.id}_${updatedRoutine.updatedAt}`;
     const updatedList = savedRoutines.map((r) => (r.id === updatedRoutine.id ? updatedRoutine : r));
-    setSavedRoutines(updatedList);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-      setSaveSuccessNotice(true);
-      setTimeout(() => setSaveSuccessNotice(false), 2500);
-    } catch (e) {
-      console.error('Error saving routine:', e);
-    }
+    saveCustomRoutines(updatedList, updatedRoutine.id);
+    setSaveSuccessNotice(true);
+    setTimeout(() => setSaveSuccessNotice(false), 2500);
   };
 
   // Create new blank routine
   const handleCreateNewRoutine = () => {
     const newRoutine = createInitialBlankRoutine(isEn, savedRoutines.length + 1);
     const updated = [...savedRoutines, newRoutine];
-    setSavedRoutines(updated);
-    setSelectedRoutineId(newRoutine.id);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+    saveCustomRoutines(updated, newRoutine.id);
   };
 
   // Duplicate current routine
@@ -169,11 +113,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
     };
 
     const updated = [...savedRoutines, duplicated];
-    setSavedRoutines(updated);
-    setSelectedRoutineId(dupId);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+    saveCustomRoutines(updated, dupId);
   };
 
   // Delete routine
@@ -183,11 +123,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
       return;
     }
     const updated = savedRoutines.filter((r) => r.id !== idToDelete);
-    setSavedRoutines(updated);
-    setSelectedRoutineId(updated[0].id);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+    saveCustomRoutines(updated, updated[0].id);
   };
 
   // Step operations: Move Up, Move Down, Remove, Update

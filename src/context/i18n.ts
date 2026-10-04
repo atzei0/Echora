@@ -10,6 +10,7 @@ export const translations = {
     navWarmup: 'Riscaldamento',
     navWorkout: 'Allenamento',
     navCooldown: 'Defaticamento',
+    navTools: 'Strumenti',
     navAbout: 'Chi Sono',
     navPricing: 'Abbonamenti',
     days: 'giorni',
@@ -24,8 +25,8 @@ export const translations = {
     aboutHeadline: 'Liberare la tua voce significa darti il permesso di fare errori... e fare anche un po\' schifo.',
     aboutBioGreeting: 'Ciao! Sono Francesca.',
     aboutBioRole: 'Sono una Cantautrice e Vocal Coach.',
-    aboutBioP1: 'Ho iniziato a studiare tecnica vocale nel 2010 e nel 2019 mi sono laureata in Canto Jazz al Conservatorio di Cagliari. Dal 2021 insegno alle persone cosa fare della propria voce, come affrontare e risolvere i propri problemi vocali e, soprattutto, come darsi lo spazio di fare errori per imparare cose nuove e dare nuova vita alla propria voce.',
-    aboutBioP2: 'Negli anni continuo a studiare, sperimentare e confrontare approcci diversi, cercando di capire che cosa funzioni davvero e come trasformare tutto quello che imparo in qualcosa di utile e concreto.',
+    aboutBioP1: 'Ho iniziato a studiare tecnica vocale nel 2010 e nel 2019 mi sono laureata in Canto Jazz al Conservatorio di Cagliari. Dal 2021 insegno ai miei allievi come affrontare e risolvere i propri problemi vocali e soprattutto come darsi lo spazio di fare errori per imparare cose nuove dando nuova vita alla propria voce.',
+    aboutBioP2: 'Tutt\'ora continuo a studiare, sperimentare e confrontare approcci diversi di tecnica vocale, cercando di capire che cosa funzioni davvero e come trasformare tutto quello che imparo in qualcosa di utile e concreto.',
     aboutWhyCreatedTitle: 'Perché ho creato Echora',
     aboutWhyCreatedP1: 'Fin dall\'inizio delle mie lezioni ho iniziato a registrare gli esercizi per i miei studenti, così che avessero del materiale con cui studiare a casa.',
     aboutWhyCreatedP2: 'L\'ho fatto anche perché io per prima so cosa significa essere disorientata davanti alla propria voce: non sapere quali esercizi fare, come farli, per quanto tempo e soprattutto se li si sta facendo nel modo giusto.',
@@ -62,18 +63,18 @@ export const translations = {
     annualPlan: 'Abbonamento Annuale',
     trialPrice: '0,99€',
     trialPeriod: '/7 giorni',
-    monthlyPrice: '20,00€',
+    monthlyPrice: '5,00€',
     monthlyPeriod: '/mese',
     quarterlyPrice: '15,00€',
     quarterlyPeriod: '/mese',
-    annualPrice: '10,00€',
-    annualPeriod: '/mese',
-    trialBilledText: '7 giorni di prova a soli 0,99€, poi rinnovo a 20,00€/mese',
+    annualPrice: '50,00€',
+    annualPeriod: '/anno',
+    trialBilledText: '7 giorni di prova a soli 0,99€, poi rinnovo a 5,00€/mese',
     quarterlyBilledText: 'Fatturato ogni 3 mesi a 45,00€ (invece di 60,00€)',
-    annualBilledText: 'Fatturato annualmente a 120,00€ (invece di 240,00€)',
+    annualBilledText: 'Fatturato annualmente a 50,00€ (invece di 60,00€)',
     trialSavingsBadge: 'PROVA A 0,99€',
     quarterlySavingsBadge: 'RISPARMIA IL 25%',
-    annualSavingsBadge: 'RISPARMIA IL 50%',
+    annualSavingsBadge: 'DUE MESI A 0€!',
     bothFullAccessNote: '⚡ Tutti i piani di abbonamento includono l\'accesso illimitato all\'intero sito e a tutti gli strumenti!',
     feature1: 'Accesso illimitato a tutti i vocalizzi e riscaldamenti',
     feature2: 'Allenamenti avanzati per Voce Mista e Risonanze',
@@ -120,7 +121,7 @@ export const translations = {
     welcomeP5: 'Qui puoi creare il tuo allenamento quotidiano, scegliere gli esercizi più adatti ai tuoi obiettivi, accedere a una libreria sempre disponibile e lasciarti guidare passo dopo passo, senza doverti preoccupare di suonare gli esercizi o ricordarli a memoria.',
     
     // Workout Structure Guide
-    structureTitle: 'Come strutturare il tuo allenamento',
+    structureTitle: 'Come usare Echora per la mia voce?',
     structureSubtitle: 'Un allenamento vocale efficace è composto da tre fasi.',
     phase1Title: '1. Riscaldamento',
     phase1Desc1: 'Il riscaldamento prepara la voce al lavoro successivo. Serve ad attivare gradualmente la muscolatura coinvolta nella fonazione e a ridurre il rischio di affaticamento.',
@@ -245,18 +246,6 @@ export const translations = {
     startBreathing: 'Avvia Esercizio di Respirazione',
     stopBreathing: 'Ferma Esercizio',
 
-    // AI Coach
-    coachTitle: 'Coach Vocale AI di Echora',
-    coachSubtitle: 'Chiedi consigli personalizzati su tecnica vocale, riscaldamento, registro di testa, appoggio e salute della voce.',
-    askCoachPlaceholder: 'Scrivi una domanda al tuo Coach Vocale...',
-    send: 'Invia',
-    suggestedQuestions: 'Domande frequenti:',
-    q1: 'Come posso eliminare la tensione alla gola negli acuti?',
-    q2: 'Cos\'è l\'appoggio diaframmatico e come si attiva?',
-    q3: 'Come trovare e rinforzare la voce mista (Mix Voice)?',
-    q4: 'Cosa fare in caso di affaticamento vocale o raucedine?',
-    coachWelcome: 'Ciao! Sono il tuo Maestro e Coach Vocale di Echora. 🎙️\n\nCome posso aiutarti oggi? Puoi chiedermi consigli sull\'appoggio diaframmatico, come superare il passaggio di registro, igiene vocale, o come eliminare la tensione alla gola.',
-
     // Practice History / Journal
     journalTitle: 'Diario di Pratica & Registrazioni Audio',
     journalSubtitle: 'Traccia i tuoi progressi, riascolta i tuoi memo vocali e mantieni la costanza di allenamento.',
@@ -278,6 +267,7 @@ export const translations = {
     // Common UI
     back: 'Indietro',
     close: 'Chiudi',
+    send: 'Invia',
   },
   en: {
     // Subtitle
@@ -288,6 +278,7 @@ export const translations = {
     navWarmup: 'Warm-up',
     navWorkout: 'Workout',
     navCooldown: 'Cooldown',
+    navTools: 'Tools',
     navAbout: 'About Me',
     navPricing: 'Subscriptions',
     days: 'days',
@@ -325,18 +316,18 @@ export const translations = {
     annualPlan: 'Annual Subscription',
     trialPrice: '€0.99',
     trialPeriod: '/7 days',
-    monthlyPrice: '€20.00',
+    monthlyPrice: '€5.00',
     monthlyPeriod: '/month',
     quarterlyPrice: '€15.00',
     quarterlyPeriod: '/month',
-    annualPrice: '€10.00',
-    annualPeriod: '/month',
-    trialBilledText: '7 days trial for only €0.99, then renews at €20.00/month',
+    annualPrice: '€50.00',
+    annualPeriod: '/year',
+    trialBilledText: '7 days trial for only €0.99, then renews at €5.00/month',
     quarterlyBilledText: 'Billed every 3 months at €45.00 (instead of €60.00)',
-    annualBilledText: 'Billed annually at €120.00 (instead of €240.00)',
+    annualBilledText: 'Billed annually at €50.00 (instead of €60.00)',
     trialSavingsBadge: '€0.99 TRIAL',
     quarterlySavingsBadge: 'SAVE 25%',
-    annualSavingsBadge: 'SAVE 50%',
+    annualSavingsBadge: 'TWO MONTHS FREE',
     bothFullAccessNote: '⚡ All subscription plans grant full unlimited access to the entire platform and all tools!',
     feature1: 'Unlimited access to all vocalises and warm-ups',
     feature2: 'Advanced workouts for Mix Voice & Resonance',
@@ -383,7 +374,7 @@ export const translations = {
     welcomeP5: 'Here you can craft your daily workout, pick the exercises tailored to your goals, access a library available 24/7, and let yourself be guided step by step without worrying about playing piano accompaniment or memorizing routines.',
     
     // Workout Structure Guide
-    structureTitle: 'How to Structure Your Workout',
+    structureTitle: 'How to use Echora for my voice?',
     structureSubtitle: 'An effective vocal workout consists of three distinct phases.',
     phase1Title: '1. Warm-up',
     phase1Desc1: 'The warm-up prepares your voice for the work ahead. It gradually activates the muscles involved in phonation and reduces the risk of vocal fatigue.',
@@ -508,18 +499,6 @@ export const translations = {
     startBreathing: 'Start Breathing Exercise',
     stopBreathing: 'Stop Exercise',
 
-    // AI Coach
-    coachTitle: 'Echora AI Vocal Coach',
-    coachSubtitle: 'Ask for personalized advice on vocal technique, warm-up, head voice, breath support, and vocal health.',
-    askCoachPlaceholder: 'Ask a question to your Vocal Coach...',
-    send: 'Send',
-    suggestedQuestions: 'Frequently asked questions:',
-    q1: 'How can I eliminate throat tension on high notes?',
-    q2: 'What is diaphragmatic support and how do I engage it?',
-    q3: 'How do I find and strengthen my Mix Voice?',
-    q4: 'What should I do in case of vocal fatigue or hoarseness?',
-    coachWelcome: 'Hello! I am your Echora Vocal Coach & Master. 🎙️\n\nHow can I help you today? Ask me about diaphragmatic support, passing through vocal registers, vocal hygiene, or relieving throat tension.',
-
     // Practice History / Journal
     journalTitle: 'Practice Journal & Audio Recordings',
     journalSubtitle: 'Track your progress, listen to your vocal memos, and maintain practice consistency.',
@@ -541,5 +520,6 @@ export const translations = {
     // Common UI
     back: 'Back',
     close: 'Close',
+    send: 'Send',
   }
 };

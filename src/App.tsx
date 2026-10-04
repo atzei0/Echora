@@ -7,35 +7,50 @@ import { VocalWorkoutView } from './components/VocalWorkoutView';
 import { VocalCooldownView } from './components/VocalCooldownView';
 import { PitchDetectorView } from './components/PitchDetectorView';
 import { VocalRangeTester } from './components/VocalRangeTester';
-import { AICoachPanel } from './components/AICoachPanel';
+import { ToolsView } from './components/ToolsView';
 import { PracticeHistory } from './components/PracticeHistory';
 import { AboutView } from './components/AboutView';
 import { SubscriptionsView } from './components/SubscriptionsView';
 import { UserProfileView } from './components/UserProfileView';
 import { Sparkles } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { RoutineQueueProvider } from './context/RoutineQueueContext';
 import { AuthModal } from './components/AuthModal';
+import { SubscriptionModal } from './components/SubscriptionModal';
 
 interface HistoryEntry {
   tab: string;
-  subTool?: 'range' | 'tuner' | 'breathing' | 'routine';
+  subTool?: 'range' | 'tuner' | 'breathing' | 'routine' | 'tempo';
   fromLabel?: string;
 }
 
 function MainApp() {
   const { t, language } = useLanguage();
+  const {
+    user,
+    vocalProfile,
+    sessions,
+    recordings,
+    preferredNotation: notation,
+    setPreferredNotation: setNotation,
+    saveVocalProfile: handleSaveProfile,
+    recordExerciseCompletion: handleExerciseComplete,
+    saveRecording: handleSaveRecording,
+    deleteRecording: handleDeleteRecording,
+    isSubscriptionModalOpen,
+    closeSubscriptionModal,
+    subscriptionModalMessage,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('start');
-  const [startSubTool, setStartSubTool] = useState<'range' | 'tuner' | 'breathing' | 'routine'>('routine');
+  const [startSubTool, setStartSubTool] = useState<'range' | 'tuner' | 'breathing' | 'routine' | 'tempo'>('routine');
   const [navHistory, setNavHistory] = useState<HistoryEntry[]>([
     { tab: 'start', subTool: 'routine' }
   ]);
-  const [notation, setNotation] = useState<NoteNotation>('latin');
 
   const handleNavigate = (
     targetTab: string,
-    subTool?: 'range' | 'tuner' | 'breathing' | 'routine',
+    subTool?: 'range' | 'tuner' | 'breathing' | 'routine' | 'tempo',
     fromLabel?: string
   ) => {
     if (targetTab === activeTab && (!subTool || subTool === startSubTool)) return;
@@ -55,6 +70,7 @@ function MainApp() {
       setStartSubTool(subTool);
     }
     setActiveTab(targetTab);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
 
     try {
       window.history.pushState({ tab: targetTab, subTool }, '', window.location.pathname);
@@ -64,6 +80,7 @@ function MainApp() {
   };
 
   const handleGoBack = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     if (navHistory.length > 1) {
       const updated = [...navHistory];
       const previous = updated.pop()!;
@@ -77,6 +94,11 @@ function MainApp() {
       setStartSubTool('routine');
     }
   };
+
+  // Scroll to top on active tab change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [activeTab]);
 
   useEffect(() => {
     try {
@@ -116,94 +138,18 @@ function MainApp() {
       backButtonLabel = language === 'en' ? '← Warm-up' : '← Riscaldamento';
     } else if (lastEntry.tab === 'cooldown') {
       backButtonLabel = language === 'en' ? '← Cool-down' : '← Defaticamento';
+    } else if (lastEntry.tab === 'tools') {
+      backButtonLabel = language === 'en' ? '← Tools' : '← Strumenti';
     } else if (lastEntry.tab === 'profile') {
       backButtonLabel = language === 'en' ? '← Profile' : '← Profilo';
     }
   }
-
-  // Vocal Profile State
-  const [vocalProfile, setVocalProfile] = useState<VocalRangeProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('vocalis_profile');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Practice History State
-  const [sessions, setSessions] = useState<PracticeSession[]>(() => {
-    try {
-      const saved = localStorage.getItem('vocalis_sessions');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Recorded Audio Memos
-  const [recordings, setRecordings] = useState<SavedRecording[]>(() => {
-    try {
-      const saved = localStorage.getItem('vocalis_recordings');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
 
   // Derived Stats
   const totalMinutes = Math.round(
     sessions.reduce((acc, curr) => acc + curr.durationMinutes, 0)
   );
   const streak = sessions.length > 0 ? Math.min(30, Math.max(1, sessions.length)) : 1;
-
-  // Save changes to localStorage
-  const handleSaveProfile = (profile: VocalRangeProfile) => {
-    setVocalProfile(profile);
-    try {
-      localStorage.setItem('vocalis_profile', JSON.stringify(profile));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleExerciseComplete = (title: string, durationSec: number) => {
-    const mins = durationSec / 60;
-    const newSession: PracticeSession = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleDateString('it-IT'),
-      durationMinutes: mins,
-      exercisesCompleted: [title],
-    };
-
-    const updated = [newSession, ...sessions];
-    setSessions(updated);
-    try {
-      localStorage.setItem('vocalis_sessions', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleSaveRecording = (rec: SavedRecording) => {
-    const updated = [rec, ...recordings];
-    setRecordings(updated);
-    try {
-      localStorage.setItem('vocalis_recordings', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDeleteRecording = (id: string) => {
-    const updated = recordings.filter((r) => r.id !== id);
-    setRecordings(updated);
-    try {
-      localStorage.setItem('vocalis_recordings', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
@@ -270,6 +216,16 @@ function MainApp() {
           />
         )}
 
+        {activeTab === 'tools' && (
+          <ToolsView
+            notation={notation}
+            vocalProfile={vocalProfile}
+            onSaveProfile={handleSaveProfile}
+            onNavigate={handleNavigate}
+            initialSubTool={startSubTool === 'breathing' ? 'routine' : (startSubTool as 'range' | 'tuner' | 'routine' | 'tempo')}
+          />
+        )}
+
         {activeTab === 'about' && (
           <AboutView onNavigate={(tab) => handleNavigate(tab)} />
         )}
@@ -297,8 +253,6 @@ function MainApp() {
           />
         )}
 
-        {activeTab === 'ai_coach' && <AICoachPanel vocalProfile={vocalProfile} />}
-
         {activeTab === 'journal' && (
           <PracticeHistory
             sessions={sessions}
@@ -321,6 +275,16 @@ function MainApp() {
       </footer>
 
       <AuthModal onNavigateToProfile={() => setActiveTab('profile')} />
+
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={closeSubscriptionModal}
+        message={subscriptionModalMessage}
+        onNavigateToPricing={() => {
+          closeSubscriptionModal();
+          handleNavigate('pricing');
+        }}
+      />
     </div>
   );
 }

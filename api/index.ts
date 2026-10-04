@@ -1,5 +1,9 @@
-import appModule from "../dist/server.cjs";
+import app from "../server";
 
-const app = (appModule as any).default ?? appModule;
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export default app;

@@ -32,8 +32,8 @@ export const VOCAL_EXERCISES: Exercise[] = [
       'When reaching high notes, cry from your eyebrows—make a pouting expression.',
       'Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
     ],
-    vocalTip: '• Cerca di fare uno sbuffo che inizi con la P o con la B a seconda di quello che ti dà meno problemi a far vibrare le labbra.\n• Se non vibrano le labbra prova a mettere le dita al centro delle guance all\'altezza dei pre-molari.\n• Se non ti esce per niente, allenati a sbuffare e basta per almeno una settimana ogni giorno, poi allenati con una nota singola a farla durare tutto il respiro.',
-    vocalTipEn: '• Try starting with a flutter/snort that begins with a P or a B sound, depending on which helps your lips vibrate more easily.\n• If your lips don\'t vibrate, try placing your fingers in the center of your cheeks at premolar level.\n• If it doesn\'t work at all, practice just snorting/fluttering every day for at least a week, then practice holding a single note for a full breath.'
+    vocalTip: '• Cerca di fare uno sbuffo che inizi con la P o con la B a seconda di quello che ti dà meno problemi a far vibrare le labbra.\n• Se non vibrano le labbra prova a mettere le dita al centro delle guance all\'altezza dei pre-molari.\n• Se non ti esce per niente, allenati a sbuffare e basta per almeno una settimana ogni giorno, poi allenati con una nota singola a farla durare tutto il respiro.\n• Se ancora non ti viene l\'esercizio, allena il respiro con l\'esercizio SSS che trovi nella sezione Altri Strumenti - Respirazione.\n• Altrimenti puoi anche sostituire il Lip Thrill con uno degli altri SOVT.',
+    vocalTipEn: '• Try starting with a flutter/snort that begins with a P or a B sound, depending on which helps your lips vibrate more easily.\n• If your lips don\'t vibrate, try placing your fingers in the center of your cheeks at premolar level.\n• If it doesn\'t work at all, practice just snorting/fluttering every day for at least a week, then practice holding a single note for a full breath.\n• If the exercise still doesn\'t work, train your breath with the SSS exercise found in the Other Tools - Breathing section.\n• Otherwise, you can also replace the Lip Trill with one of the other SOVT exercises.'
   },
   {
     id: 'cannuccia_sovt',
@@ -48,11 +48,21 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 67,
     direction: 'asc_desc',
     instructions: [
-      'Inserisci una cannuccia tra le labbra sigillando accuratamente la bocca intorno ad essa.',
-      'Emetti un suono morbido e continuo attraverso la cannuccia.',
-      'Esegui la scala a 5 note avvertendo una piacevole sensazione di decompressione nella gola.'
+      'Riempi di acqua un bicchiere fino a metà o poco più',
+      'Fai le bolle ed emetti un suono continuo attraverso la cannuccia facendo il pattern melodico scelto',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+      'Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.',
+      'Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).'
     ],
-    vocalTip: 'Puoi anche immergere l\'estremità della cannuccia in un bicchiere d\'acqua per un effetto di massaggio vocale (Lax Vox).'
+    instructionsEn: [
+      'Fill a glass with water up to halfway or a little more',
+      'Blow bubbles and emit a continuous vocal sound through the straw following your chosen melody pattern',
+      'Remember to release your air and take a new breath at each key change.',
+      'When reaching high notes, cry from your eyebrows—make a pouting expression.',
+      'Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
+    ],
+    vocalTip: '• Puoi fare l\'esercizio anche solo con la cannuccia senza l\'acqua\n• Presta attenzione a mantenere un flusso d\'aria uniforme\n• Tieni la cannuccia con le dita, altrimenti accumulerai tensioni ai muscoli facciali\n• Presta attenzione a non poggiare la cannuccia sul fondo del bicchiere - Scegli quanto immergere la cannuccia: più a fondo è, maggiore sarà la resistenza dell\'acqua al flusso d\'aria (più pesante soffiare)',
+    vocalTipEn: '• You can also perform the exercise with just the straw, without water\n• Pay attention to maintaining a steady, even airflow\n• Hold the straw with your fingers, otherwise you will accumulate tension in your facial muscles\n• Be careful not to rest the straw on the bottom of the glass - Choose how deep to submerge it: the deeper it is, the higher the water resistance to airflow (harder to blow)'
   },
   {
     id: 'trillo_sovt',
@@ -67,11 +77,15 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 67,
     direction: 'asc_desc',
     instructions: [
-      'Appoggia delicatamente la punta della lingua sul palato anteriore dietro i denti.',
-      'Fai vibrare la lingua con il flusso d\'aria continuo pronunciando "TRRR".',
-      'Canta la scala Do-Re-Mi-Fa-Sol-Fa-Mi-Re-Do bilanciando l\'aria.'
+      'Appoggia la punta della lingua sul palato anteriore dietro i denti.',
+      'Fai vibrare la lingua con il flusso d\'aria continuo pronunciando "TRRR".'
     ],
-    vocalTip: 'Se il trillo è difficile, mantieni l\'aria abbondante e rilassa completamente il collo.'
+    instructionsEn: [
+      'Rest the tip of your tongue on the front palate just behind your upper teeth.',
+      'Make your tongue vibrate with a continuous stream of air while pronouncing "TRRR".'
+    ],
+    vocalTip: '• Se la lingua smette di vibrare prova a spostarla più avanti o più indietro sul palato\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• If your tongue stops vibrating, try moving it slightly further forward or backward on the palate.\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vvv_sovt',
@@ -87,10 +101,14 @@ export const VOCAL_EXERCISES: Exercise[] = [
     direction: 'asc_desc',
     instructions: [
       'Appoggia i denti superiori sul labbro inferiore.',
-      'Emetti il suono continuo "VVV" avvertendo la vibrazione costante sulle labbra.',
-      'Esegui la scala guidando il fiato in modo fluido e uniforme.'
+      'Emetti il suono continuo "VVV" avvertendo la vibrazione costante sulle labbra.'
     ],
-    vocalTip: 'Mantieni la vibrazione leggera e costante senza premere i denti sul labbro.'
+    instructionsEn: [
+      'Rest your upper teeth gently on your lower lip.',
+      'Emit a continuous "VVV" sound, feeling a constant vibration across your lips.'
+    ],
+    vocalTip: '• Puoi mettere un dito appoggiato alle labbra se vuoi, come a fare "sshh" 🤫\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• You can rest a finger on your lips if you want, as if making a "shh" 🤫 gesture\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'zzz_sovt',
@@ -105,11 +123,13 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 67,
     direction: 'asc_desc',
     instructions: [
-      'Avvicina i denti senza stringerli e posiziona la lingua per emettere il suono "ZZZ".',
-      'Conserva un flusso d\'aria misurato e continuo per tutta la scala.',
-      'Senti la vibrazione anteriore e la spinta uniforme dell\'addome.'
+      'Esegui l\'esercizio cantando il pattern melodico scelto con la Z, la stessa che senti in "casa"'
     ],
-    vocalTip: 'Un suono ZZZ ben bilanciato dona grande stabilità al tono vocale.'
+    instructionsEn: [
+      'Perform the exercise singing the chosen melody pattern with a voiced Z (as in the Italian "casa" or "rose")'
+    ],
+    vocalTip: '• Cerca di mantenere un flusso d\'aria misurato e continuo per tutta l\'emissione\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Try to maintain a measured, continuous stream of air throughout the entire vocal emission\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'pesce_palla_sovt',
@@ -124,11 +144,13 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 67,
     direction: 'asc_desc',
     instructions: [
-      'Gonfia le guance come un pesce palla lasciando uscire solo uno spiffero d\'aria dalle labbra.',
-      'Canta la scala emettendo un suono morbido ed interno.',
-      'Mantieni lo spazio faringeo ampio e rilassato.'
+      'Gonfia le guance come un pesce palla lasciando uscire solo uno spiffero d\'aria dalle labbra.'
     ],
-    vocalTip: 'Questa posizione decomprime le corde vocali e riduce immediatamente le tensioni laringee.'
+    instructionsEn: [
+      'Puff up your cheeks like a pufferfish, allowing only a small stream of air to escape through your lips.'
+    ],
+    vocalTip: '• Cerca di mantenere un flusso d\'aria omogeneo\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Try to keep a smooth, uniform airflow throughout\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
 
   // --- 2. VOCALIZZI ---
@@ -145,11 +167,15 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Chiudi le labbra in modo morbido senza stringere i denti.',
-      'Emetti un suono mormorato "MMM" sentendo la risonanza sulle labbra e sulla maschera.',
-      'Canta la scala mantenendo il flusso d\'aria fluido e costante.'
+      'Fai una M sorridendo, con gli zigomi su',
+      'Cerca di sentire la vibrazione nei denti anteriori'
     ],
-    vocalTip: 'Visualizza la vibrazione posizionata esattamente dietro le labbra e sugli zigomi.'
+    instructionsEn: [
+      'Make an M sound while smiling, keeping your cheekbones lifted',
+      'Try to feel the vibration in your front teeth'
+    ],
+    vocalTip: '• Presta attenzione a non stringere la mascella\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Pay close attention not to clench or tighten your jaw.\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vocalizzo_uuuh',
@@ -164,11 +190,13 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Arrotonda le labbra e crea una cavità orale ampia come per un accenno di sbadiglio.',
-      'Canta "UUUH" mantenendo la laringe rilassata e in posizione di riposo.',
-      'Sali lungo la scala avvertendo una sensazione di rotondità e profondità nel timbro.'
+      'Esegui il pattern melodico con una U'
     ],
-    vocalTip: 'Non stringere le labbra a imbuto stretto; mantieni morbidi gli angoli della bocca.'
+    instructionsEn: [
+      'Perform the melody pattern on a U vowel'
+    ],
+    vocalTip: '• Non stringere le labbra a imbuto stretto; mantieni morbidi gli angoli della bocca.\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Do not purse your lips into a tight funnel; keep the corners of your mouth relaxed and soft.\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vocalizzo_ng',
@@ -183,11 +211,15 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Posiziona il dorso della lingua contro il palato molle come pronunciando "KING".',
-      'Lascia uscire il suono solo attraverso il naso con un suono "NG" brillante e concentrato.',
-      'Esegui la scala avvertendo lo squillo nella parte superiore della maschera.'
+      'Cerca il suono nasale che avresti se ti fermassi fra la N e la G di una parola, ad esempio "KING" o "CANGURO"',
+      'Una volta trovato il suono controlla se è quello giusto tappandoti il naso e provando a far uscire il suono: il suono deve essere totalmente nasale, quindi se tappando il naso il suono NON esce, allora stai facendo giusto'
     ],
-    vocalTip: 'Se senti laringe o collo tesi, diminuisci il volume e concentrati unicamente sul flusso nasale.'
+    instructionsEn: [
+      'Find the nasal sound you get if you pause right between the N and G of a word, such as "KING" or "KANGAROO"',
+      'Once found, test if it is correct by pinching your nose and trying to emit the sound: it must be completely nasal, so if pinching your nose stops the sound entirely, you are doing it right'
+    ],
+    vocalTip: '• Se senti laringe o collo tesi, diminuisci il volume e concentrati unicamente sul flusso nasale.\n• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• If your larynx or neck feels tense, lower the volume and focus purely on the nasal airflow.\n• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vocalizzo_lip_trill_ng_nee',
@@ -202,10 +234,17 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Esegui il vocalizzo passando da Lip Trill a NG e infine a NEE sull\'arpeggio composto discendente.',
-      'Mantieni una risonanza fluida e costante lungo tutto il percorso.'
+      'Esegui il pattern melodico già selezionato passando da Lip Thrill a NG e infine NEE',
+      'È un esercizio più complesso degli altri quindi se sei alle prime armi potresti trovare più difficoltà',
+      'Quando passi a NEE cerca di mantenere una risonanza verso avanti'
     ],
-    vocalTip: 'L\'alternanza tra Lip Trill, NG e NEE aiuta ad azzerare le tensioni ed equilibrare il flusso d\'aria.'
+    instructionsEn: [
+      'Perform the selected melody pattern transitioning from Lip Thrill to NG and finally NEE',
+      'This exercise is more complex than others, so beginners may find it somewhat harder',
+      'When transitioning to NEE, try to keep the vocal resonance directed forward'
+    ],
+    vocalTip: '• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vocalizzo_tz_tz_tze',
@@ -220,10 +259,21 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Emetti il suono "TZ TZ TZE" eseguendo un glissando discendente morbido dal 5° al 1° grado.',
-      'Mantieni la pressione d\'aria costante senza spingere col collo.'
+      'Esercizio molto usato per il riscaldamento dei bambini',
+      'Esegui l\'esercizio con il suono di Z che trovi nella parola "PAZZO"',
+      'Le prime due Z sono senza nota',
+      'Invece TZE dovrai farlo con un glissando',
+      'Presta attenzione a non fare un passaggio netto fra le due note di TZE, quindi se hai bisogno fai un glissando più lento'
     ],
-    vocalTip: 'Il suono consonantico TZ attiva subito la spinta addominale elastica.'
+    instructionsEn: [
+      'A warm-up exercise widely used for children and agile voice release',
+      'Perform the exercise with the crisp Z sound found in the Italian word "PAZZO" (ts)',
+      'The first two Z sounds are whispered/unpitched',
+      'TZE is performed with a smooth glissando',
+      'Pay attention not to make an abrupt jump between the two notes of TZE; do a slower glissando if needed'
+    ],
+    vocalTip: '• Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.\n• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Ricorda che questo è il riscaldamento quindi non dobbiamo performare arrivando a note altissime, sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• Remember to release your air and take a new breath at each key change.\n• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• Remember this is a warm-up, so don\'t aim for extreme high notes: ascend as far as comfortable and descend, passing through both registers: chest and head (M1 and M2).'
   },
   {
     id: 'vocalizzo_mam_fissa',
@@ -238,10 +288,19 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 68,
     direction: 'asc_desc',
     instructions: [
-      'Ripeti il suono "MAM" per 5 volte mantenendo la stessa nota.',
-      'Concentrati sull\'omogeneità del timbro e sull\'attacco vocalico morbido.'
+      'L\'esercizio è composto da una M senza vocale, poi MA, poi una M senza vocale, MA, e si conclude con la M senza vocale.',
+      'Fai una M sorridendo, con gli zigomi su e cerca di mantenerli alzati anche quando canti MA, ma aprendo anche verticalmente la bocca.',
+      'Cerca di sentire la vibrazione nei denti anteriori e cerca di mantenere quella stessa risonanza della M anche quando canti MA.',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.'
     ],
-    vocalTip: 'Fai risuonare la M iniziale sugli zigomi prima di aprire leggermente sulla A.'
+    instructionsEn: [
+      'The exercise consists of an M with no vowel, then MA, then an unvoweled M, MA, and ends on an unvoweled M.',
+      'Make an M while smiling with cheekbones lifted, keeping them high when singing MA while also opening vertically.',
+      'Feel the vibration in your front teeth and maintain that same forward M resonance when singing MA.',
+      'Remember to release your air and take a new breath at each key change.'
+    ],
+    vocalTip: '• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Quando arrivi alle note alte può aiutarti fare una A che tende verso una O.\n• Questo esercizio può essere utilizzato anche per allenare il MIX.\n• Se lo stai usando come riscaldamento, prendilo più alla leggera e quindi non salire tanto se vuoi stare in petto, oppure sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• When reaching high notes, singing an A that tilts slightly toward an O can help.\n• This exercise can also be used to train vocal MIX.\n• If used as a warm-up, take it easy: don\'t push too high in chest voice, or ascend comfortably and descend, passing through both chest and head registers (M1 and M2).'
   },
   {
     id: 'vocalizzo_mmm_me',
@@ -257,36 +316,137 @@ export const VOCAL_EXERCISES: Exercise[] = [
     direction: 'asc_desc',
     instructions: [
       'Canta la prima parte della scala (12345 432) a bocca chiusa "MMM".',
-      'Senza interrompere il fiato, prosegui la seconda parte (12345 4321) aprendo la vocale "ME".'
+      'Senza interrompere il fiato, prosegui la seconda parte (12345 4321) aprendo la vocale "ME".',
+      'Fai una M sorridendo, con gli zigomi su e cerca di mantenerli alzati anche quando canti ME, ma aprendo anche verticalmente la bocca.',
+      'Cerca di sentire la vibrazione nei denti anteriori e cerca di mantenere quella stessa risonanza della M anche quando canti ME.',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.'
     ],
-    vocalTip: 'Mantieni la stessa risonanza anteriore agganciata dal mormorio MMM anche quando apri in ME.'
+    instructionsEn: [
+      'Sing the first part of the scale (12345 432) on a closed-mouth "MMM".',
+      'Without stopping your breath, continue into the second part (12345 4321) opening into the vowel "ME".',
+      'Form an M smiling with lifted cheekbones, keeping them raised when singing ME while also opening your mouth vertically.',
+      'Try to feel vibration in the front teeth and maintain that same forward M resonance when opening into ME.',
+      'Remember to release your air and take a new breath at each key change.'
+    ],
+    vocalTip: '• Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.\n• Quando arrivi alle note alte può aiutarti anche fare una E che tende verso una A.\n• Questo esercizio può essere utilizzato anche per allenare il MIX.\n• Se lo stai usando come riscaldamento, prendilo più alla leggera e quindi non salire tanto se vuoi stare in petto, oppure sali fin dove trovi comodità e poi riscendi, assicurandoti di passare per entrambi i registri: petto e testa (M1 e M2).',
+    vocalTipEn: '• When reaching high notes, cry from your eyebrows—make a pouting expression.\n• When reaching high notes, it can also help to sing an E that tilts slightly toward an A.\n• This exercise can also be used to train vocal MIX.\n• If used as a warm-up, take it easy: don\'t push too high in chest voice, or ascend comfortably and descend, passing through both chest and head registers (M1 and M2).'
+  },
+  {
+    id: 'vocalizzo_mee_151',
+    title: 'MEE (1-5-1 Glissando Quinta Corta)',
+    titleEn: 'MEE (1-5-1 Short 5th Glissando)',
+    category: 'Vocalizzi',
+    description: 'Glissando di quinta corta (1-5-1) su MEE per scaldare ed omogeneizzare i registri vocali.',
+    scalePattern: 'gliss_1_5_1',
+    allowedPatterns: ['gliss_1_5_1', 'gliss_1_5'],
+    defaultVowel: 'MEE',
+    defaultTempoBpm: 100,
+    recommendedStartMidi: 48,
+    recommendedEndMidi: 68,
+    direction: 'asc_desc',
+    instructions: [
+      'Esegui l\'esercizio facendo un glissando dalla 1 alla 5 della scala, facendo la seconda nota corta, come nell\'esempio audio',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+      'Quando arrivi alle note alte piangi dalle sopracciglia, ossia fai l\'espressione imbronciata.'
+    ],
+    instructionsEn: [
+      'Perform the exercise by gliding from 1 to 5 of the scale, making the second note short, as in the audio example.',
+      'Remember to release your air and take a new breath at each key change.',
+      'When reaching high notes, cry from your eyebrows—make a pouting expression.'
+    ],
+    vocalTip: '• Questo è il riscaldamento: sali fin dove trovi comodità e poi riscendi, passando per entrambi i registri (petto e testa).\n• Presta attenzione a fare un glissando e non un passaggio netto fra le note',
+    vocalTipEn: '• This is a warm-up: ascend comfortably and descend, passing through both registers (chest and head).\n• Pay attention to executing a smooth glissando rather than an abrupt transition between notes.'
   },
 
   // --- 3. VOCE MISTA ---
   {
     id: 'mix_meee',
     title: 'MEEE',
+    titleEn: 'MEEE',
     category: 'Voce Mista',
     description: 'Esercizio in voce mista sul suono MEEE per agganciare la risonanza alta e sostenere il passaggio di registro.',
+    descriptionEn: 'Mixed voice exercise on the MEEE sound to engage forward resonance and bridge the vocal registers.',
     scalePattern: 'scale_4_notes',
-    allowedPatterns: ['scale_4_notes', 'scale_4_notes_2x'],
+    allowedPatterns: ['scale_4_notes', 'scale_4_notes_2x', 'five_notes'],
     defaultVowel: 'MEEE',
     defaultTempoBpm: 100,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Inizia la consonante "M" risuonando bene nella maschera.',
-      'Apri sulla vocale "EEE" mantenendo il suono focalizzato e stretto, senza urlare.',
-      'Esegui la scala 1234 321 portando il suono in alto in modo fluido.'
+      'Esegui l\'esercizio come nell\'esempio audio',
+      'Assicurati di tenere alzati gli zigomi ed aprire la bocca verticalmente con la E',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+      'Quando arrivi alle note alte aggiungi pianto, modifica la vocale verso una A e aggiungi sostegno e ancoraggio'
     ],
-    vocalTip: 'Pensa a un timbro luminoso e concentrato sul palato duro.'
+    instructionsEn: [
+      'Perform the exercise as demonstrated in the audio example',
+      'Make sure to keep your cheekbones lifted and open your mouth vertically on the E vowel',
+      'Remember to release your air and take a new breath at each key change.',
+      'When you reach high notes, add a slight sob/cry sensation, modify the vowel toward an A, and engage breath support and anchoring'
+    ],
+    vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• L\'esercizio può essere fatto sia col pattern singolo che con quello doppio. In quello doppio, bisogna cantare il pattern per intero con un unico respiro.',
+    vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• The exercise can be performed with either the single or double pattern. In the double pattern, sing the entire pattern in one single breath.',
+    patternOverrides: {
+      scale_4_notes: {
+        instructions: [
+          'Esegui l\'esercizio come nell\'esempio audio (pattern singolo 1234 321)',
+          'Assicurati di tenere alzati gli zigomi ed aprire la bocca verticalmente con la E',
+          'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+          'Quando arrivi alle note alte aggiungi pianto, modifica la vocale verso una A e aggiungi sostegno e ancoraggio'
+        ],
+        instructionsEn: [
+          'Perform the exercise as demonstrated in the audio example (single 1234 321 pattern)',
+          'Make sure to keep your cheekbones lifted and open your mouth vertically on the E vowel',
+          'Remember to release your air and take a new breath at each key change.',
+          'When you reach high notes, add a slight sob/cry sensation, modify the vowel toward an A, and engage breath support and anchoring'
+        ],
+        vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• Nel pattern singolo concentrati su ogni emissione con precisione prima di modulare alla tonalità successiva.',
+        vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• On the single pattern, focus with precision on each repetition before modulating to the next key.'
+      },
+      scale_4_notes_2x: {
+        instructions: [
+          'Esegui l\'esercizio come nell\'esempio audio (pattern doppio 1234 321 x2)',
+          'Nel pattern doppio, canta l\'intero pattern con un unico respiro.',
+          'Assicurati di tenere alzati gli zigomi ed aprire la bocca verticalmente con la E',
+          'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+          'Quando arrivi alle note alte aggiungi pianto, modifica la vocale verso una A e aggiungi sostegno e ancoraggio'
+        ],
+        instructionsEn: [
+          'Perform the exercise as demonstrated in the audio example (double pattern 1234 321 x2)',
+          'In the double pattern, sing the entire pattern in one single breath.',
+          'Make sure to keep your cheekbones lifted and open your mouth vertically on the E vowel',
+          'Remember to release your air and take a new breath at each key change.',
+          'When you reach high notes, add a slight sob/cry sensation, modify the vowel toward an A, and engage breath support and anchoring'
+        ],
+        vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• Nel pattern doppio, bisogna cantare il pattern per intero con un unico respiro: mantieni il sostegno e l\'ancoraggio costanti per tutta la durata delle due sequenze.',
+        vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• In the double pattern, sing the full pattern in one breath: keep breath support and body anchoring steady throughout both sequences.'
+      },
+      five_notes: {
+        instructions: [
+          'Esegui l\'esercizio come nell\'esempio audio (pattern scala di 5 note 12345 4321)',
+          'Assicurati di tenere alzati gli zigomi ed aprire la bocca verticalmente con la E',
+          'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+          'Quando arrivi alle note alte aggiungi pianto, modifica la vocale verso una A e aggiungi sostegno e ancoraggio'
+        ],
+        instructionsEn: [
+          'Perform the exercise as demonstrated in the audio example (5-note scale pattern 12345 4321)',
+          'Make sure to keep your cheekbones lifted and open your mouth vertically on the E vowel',
+          'Remember to release your air and take a new breath at each key change.',
+          'When you reach high notes, add a slight sob/cry sensation, modify the vowel toward an A, and engage breath support and anchoring'
+        ],
+        vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• Sulla scala a 5 note mantieni il focus della risonanza anteriore senza allargare o appesantire la voce al vertice.',
+        vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• On the 5-note scale, maintain forward resonance focus without widening or pushing excess weight at the top.'
+      }
+    }
   },
   {
     id: 'mix_mime_ma_mo_mu',
     title: 'MI ME MA MO MU',
+    titleEn: 'MI ME MA MO MU',
     category: 'Voce Mista',
     description: 'Sequenza di vocali per omogeneizzare il timbro misto attraverso tutti i colori vocalici.',
+    descriptionEn: 'Vowel sequence to homogenize mixed voice resonance across all vocal colors.',
     scalePattern: 'scale_4_notes_5x',
     allowedPatterns: ['scale_4_notes_5x'],
     defaultVowel: 'MI ME MA MO MU',
@@ -295,11 +455,43 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta il pattern 1234 321 per 5 volte (MI, ME, MA, MO, MU) in un giro da 6 battute da 4/4.',
-      'Nelle prime 5 battute esegui Do Re Mi Fa Mi Re Do (1234 321) per ciascuna vocale.',
-      'Nella sesta battuta ascolta l\'accordo di modulazione alla tonalità successiva.'
+      'Esegui l\'esercizio come nell\'esempio audio',
+      'Assicurati di tenere alzati gli zigomi ed aprire la bocca per tutte le vocali',
+      'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+      'Quando arrivi alle note alte aggiungi pianto, modifica le vocali:\n• la I verso la E\n• la E verso la A\n• la A verso la O\n• la O verso la A (lo so sembra una presa in giro ma non lo è)\n• la U verso la O',
+      'Aggiungi anche sostegno e ancoraggio al bisogno.'
     ],
-    vocalTip: 'La consonante M iniziale ti aiuta ad agganciare la risonanza naso-faringea.'
+    instructionsEn: [
+      'Perform the exercise as demonstrated in the audio example',
+      'Make sure to keep your cheekbones lifted and open your mouth vertically for all vowels',
+      'Remember to release your air and take a new breath at each key change.',
+      'When you reach high notes, add a cry/sob sensation and modify vowels:\n• I toward E\n• E toward A\n• A toward O\n• O toward A (sounds counter-intuitive, but it works!)\n• U toward O',
+      'Add breath support and body anchoring as needed.'
+    ],
+    vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• Nell\'esercizio bisogna cantare il pattern per intero con un unico respiro.',
+    vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• In this exercise you must sing the entire pattern in one single breath.',
+    patternOverrides: {
+      scale_4_notes_5x: {
+        instructions: [
+          'Esegui l\'esercizio come nell\'esempio audio (sequenza completa da 5 vocali)',
+          'Canta l\'intera sequenza (MI, ME, MA, MO, MU) con un unico respiro.',
+          'Assicurati di tenere alzati gli zigomi ed aprire la bocca per tutte le vocali',
+          'Ricorda di buttare fuori l\'aria e prendere un nuovo respiro al cambio di nota.',
+          'Quando arrivi alle note alte aggiungi pianto, modifica le vocali:\n• la I verso la E\n• la E verso la A\n• la A verso la O\n• la O verso la A (lo so sembra una presa in giro ma non lo è)\n• la U verso la O',
+          'Aggiungi anche sostegno e ancoraggio al bisogno.'
+        ],
+        instructionsEn: [
+          'Perform the exercise as demonstrated in the audio example (full 5-vowel sequence)',
+          'Sing the full sequence (MI, ME, MA, MO, MU) in one single breath.',
+          'Make sure to keep your cheekbones lifted and open your mouth vertically for all vowels',
+          'Remember to release your air and take a new breath at each key change.',
+          'When you reach high notes, add a cry/sob sensation and modify vowels:\n• I toward E\n• E toward A\n• A toward O\n• O toward A\n• U toward O',
+          'Add breath support and body anchoring as needed.'
+        ],
+        vocalTip: '• In questo esercizio vogliamo cercare di non passare in falsetto quando arriviamo alle note difficili, piuttosto applichiamo le tecniche per sviluppare il nostro registro misto e quindi vogliamo avere un suono forte ma senza sforzare.\n• Nell\'esercizio bisogna cantare il pattern per intero con un unico respiro: calibra il fiato fin dalla prima vocale MI per sostenere agilmente fino alla U finale.',
+        vocalTipEn: '• In this exercise we want to avoid flipping into falsetto on difficult notes; instead, apply mixed voice techniques to achieve a strong sound without straining.\n• In this exercise you must sing the entire pattern in one single breath: pace your airflow from the initial MI to comfortably support through the final MU.'
+      }
+    }
   },
   {
     id: 'mix_mum',
@@ -345,7 +537,7 @@ export const VOCAL_EXERCISES: Exercise[] = [
     category: 'Voce Mista',
     description: 'Scala 12345 seguita da glissando discendente di ritorno alla prima nota su MEE.',
     scalePattern: 'scale_5_gliss_desc',
-    allowedPatterns: ['scale_5_gliss_desc', 'five_notes'],
+    allowedPatterns: ['scale_5_gliss_desc'],
     defaultVowel: 'MEE',
     defaultTempoBpm: 105,
     recommendedStartMidi: 58,
@@ -363,7 +555,7 @@ export const VOCAL_EXERCISES: Exercise[] = [
     category: 'Voce Mista',
     description: 'Arpeggio 135 - 31 sul suono nasale e squillante GNE GNE per assottigliare le corde vocali.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['three_notes', 'arpeggio_13521'],
     defaultVowel: 'GNE GNE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
@@ -376,30 +568,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
     vocalTip: 'Mantieni il suono leggero e tagliente come una risata dispettosa.'
   },
   {
-    id: 'mix_gne_12321',
-    title: 'GNE GNE (123 21)',
-    category: 'Voce Mista',
-    description: 'Pattern a 3 note (123 21) su GNE GNE per una transizione fluida e rilassata.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'GNE GNE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Esegui l\'arpeggio 123 21 pronunciando "GNE GNE".',
-      'Sfrutta la vicinanza delle note per non irrigidire l\'apparato vocale.'
-    ],
-    vocalTip: 'Mantieni la bocca morbida e lo squillo ben concentrato.'
-  },
-  {
     id: 'mix_ye_13521',
     title: 'YE YE YE (135 - 31)',
     category: 'Voce Mista',
     description: 'Arpeggio 135 - 31 su YE YE YE per un attacco morbido e una risonanza brillante.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['three_notes', 'arpeggio_13521'],
     defaultVowel: 'YE YE YE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
@@ -412,30 +586,14 @@ export const VOCAL_EXERCISES: Exercise[] = [
     vocalTip: 'L\'attacco in Y evita colpi di glottide e libera le vibrazioni superiori.'
   },
   {
-    id: 'mix_ye_12321',
-    title: 'YE YE YE (123 21)',
-    category: 'Voce Mista',
-    description: 'Pattern a 3 note (123 21) su YE YE YE per l\'agilità del registro misto.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'YE YE YE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Articola "YE YE YE" sulle note 1 2 3 2 1.',
-      'Esegui i cambi di nota con estrema morbidezza.'
-    ],
-    vocalTip: 'Non stringere il collo sul vertice del pattern (nota 3).'
-  },
-  {
     id: 'mix_mne_fissa',
     title: 'MNE (Nota Fissa)',
+    titleEn: 'MNE (Sustained Note)',
     category: 'Voce Mista',
     description: 'Esercizio a nota fissa su MNE per stabilizzare l\'adduzione cordale e la maschera.',
+    descriptionEn: 'Sustained note exercise on MNE to stabilize vocal fold adduction and forward mask resonance.',
     scalePattern: 'fixed_3_notes',
-    allowedPatterns: ['fixed_3_notes', 'fixed_5_notes'],
+    allowedPatterns: ['fixed_3_notes'],
     defaultVowel: 'MNE',
     defaultTempoBpm: 100,
     recommendedStartMidi: 58,
@@ -445,7 +603,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
       'Articola "MNE" tenendo la nota fissa.',
       'Senti la consonante M nasale che si fonde con la vocale E ben focalizzata.'
     ],
-    vocalTip: 'Il suono MNE attiva immediatamente l\'assottigliamento delle corde vocali.'
+    instructionsEn: [
+      'Articulate "MNE" holding the sustained note.',
+      'Feel the nasal M consonant blend seamlessly into the focused E vowel.'
+    ],
+    vocalTip: '• Il suono MNE attiva immediatamente l\'assottigliamento delle corde vocali.\n• Mantieni la risonanza anteriore senza spingere aria o forzare la laringe.',
+    vocalTipEn: '• The MNE sound immediately engages thin vocal fold edges.\n• Maintain forward resonance without pushing air or forcing the larynx.'
   },
   {
     id: 'mix_mee_1_8_5',
@@ -453,7 +616,7 @@ export const VOCAL_EXERCISES: Exercise[] = [
     category: 'Voce Mista',
     description: 'Salto 1 -> 8 -> 5 (Do, Do ottava, Sol) per coordinare i tre registri: Petto (1), Falsetto (8), Misto (5).',
     scalePattern: 'arpeggio_185',
-    allowedPatterns: ['arpeggio_185', 'broad_arpeggio'],
+    allowedPatterns: ['arpeggio_185'],
     defaultVowel: 'MEE',
     defaultTempoBpm: 95,
     recommendedStartMidi: 58,
@@ -469,10 +632,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
   {
     id: 'mix_mam_fissa',
     title: 'MAM (1 1 1 1 1)',
+    titleEn: 'MAM (1 1 1 1 1)',
     category: 'Voce Mista',
     description: '5 ripetizioni a nota fissa su MAM per rinforzare la tenuta del registro misto.',
+    descriptionEn: '5 sustained repetitions on MAM to reinforce mixed voice stability.',
     scalePattern: 'fixed_5_notes',
-    allowedPatterns: ['fixed_5_notes', 'fixed_3_notes'],
+    allowedPatterns: ['fixed_5_notes'],
     defaultVowel: 'MAM',
     defaultTempoBpm: 105,
     recommendedStartMidi: 58,
@@ -482,15 +647,22 @@ export const VOCAL_EXERCISES: Exercise[] = [
       'Ripeti "MAM" per 5 volte sulla stessa nota.',
       'Mantenere la A ben posizionata senza allargare eccessivamente la bocca.'
     ],
-    vocalTip: 'Controlla che ciascun attacco sia identico al precedente.'
+    instructionsEn: [
+      'Repeat "MAM" 5 times on the same note.',
+      'Keep the A vowel well positioned vertically without overly widening the mouth.'
+    ],
+    vocalTip: '• Controlla che ciascun attacco sia identico al precedente.\n• L\'attacco in M pre-attiva le cavità di risonanza prima di aprire la A.',
+    vocalTipEn: '• Check that each onset is identical to the previous one.\n• The M onset pre-activates the resonance cavities before opening the A.'
   },
   {
     id: 'mix_mam_11151',
     title: 'MAM (1 1 1 5 1)',
+    titleEn: 'MAM (1 1 1 5 1)',
     category: 'Voce Mista',
     description: 'Tre note fisse sulla base (1 1 1), salto di quinta al 5° grado e ritorno a 1 con MAM.',
+    descriptionEn: 'Three sustained root notes (1 1 1), leap of a fifth to the 5th degree, and return to 1 on MAM.',
     scalePattern: 'jump_5_1',
-    allowedPatterns: ['jump_5_1', 'triad'],
+    allowedPatterns: ['jump_5_1'],
     defaultVowel: 'MAM',
     defaultTempoBpm: 105,
     recommendedStartMidi: 58,
@@ -500,7 +672,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
       'Canta 1 1 1 sulla nota base, salta al 5° grado e ritorna a 1.',
       'Usa l\'ancoraggio addominale per sostenere l\'intervallo di quinta.'
     ],
-    vocalTip: 'Maniatati rilassato sul salto senza spingere la laringe in alto.'
+    instructionsEn: [
+      'Sing 1 1 1 on the root note, leap to the 5th degree and return to 1.',
+      'Use abdominal anchoring and breath support to sustain the interval of a fifth.'
+    ],
+    vocalTip: '• Mantieniti rilassato sul salto senza spingere la laringe in alto.\n• Non cambiare la forma della bocca durante il salto di quinta.',
+    vocalTipEn: '• Stay relaxed on the leap without pushing the larynx upward.\n• Do not alter mouth shape during the leap of a fifth.'
   },
   {
     id: 'mix_he_he_heee_55531',
@@ -522,7 +699,7 @@ export const VOCAL_EXERCISES: Exercise[] = [
   },
   {
     id: 'mix_mee_gliss_151',
-    title: 'MEE (1-5-1 Glissando Lento)',
+    title: 'Mee (1-5-1 Glissando)',
     category: 'Voce Mista',
     description: 'Glissando lento di quinta (1->5 e 5->1) per omogeneizzare la salita e la discesa.',
     scalePattern: 'gliss_1_5_1',
@@ -544,7 +721,7 @@ export const VOCAL_EXERCISES: Exercise[] = [
     category: 'Voce Mista',
     description: 'Attacco con Vocal Fry sulla nota alta (5 5 5 3 1) per azzerare la tensione cordale prima di cantare.',
     scalePattern: 'arpeggio_55531',
-    allowedPatterns: ['arpeggio_55531', 'arpeggio_531_desc'],
+    allowedPatterns: ['arpeggio_55531'],
     defaultVowel: '(Fry) E E EEE',
     defaultTempoBpm: 100,
     recommendedStartMidi: 58,
@@ -557,30 +734,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
     vocalTip: 'Il vocal fry aiuta le corde a chiudersi dolcemente senza pressione d\'aria eccessiva.'
   },
   {
-    id: 'mix_mee_111_falsetto_petto',
-    title: 'MEE (111 - Falsetto Petto)',
-    category: 'Voce Mista',
-    description: '3 note fisse (1 1 1) alternando la percezione dei registri (falsetto -> petto) sulla stessa nota.',
-    scalePattern: 'fixed_3_notes',
-    allowedPatterns: ['fixed_3_notes', 'fixed_5_notes'],
-    defaultVowel: 'MEE',
-    defaultTempoBpm: 95,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Canta 3 volte la stessa nota MEE variando l\'intensità dal falsetto piú leggero alla voce di petto.',
-      'Sperimenta il punto di equilibrio della voce mista.'
-    ],
-    vocalTip: 'Varia solo la massa cordale coinvolta, non l\'intonazione della nota.'
-  },
-  {
     id: 'mix_he_he_181_gliss',
     title: 'HE HE (1-8-1 Glissato Lento)',
     category: 'Voce Mista',
     description: 'Glissando lento dell\'ottava (1 -> 8 -> 1) su HE HE per attraversare liberamente tutto il passaggio.',
     scalePattern: 'siren_glide',
-    allowedPatterns: ['siren_glide', 'gliss_1_5_1'],
+    allowedPatterns: ['siren_glide'],
     defaultVowel: 'HE HE',
     defaultTempoBpm: 85,
     recommendedStartMidi: 58,
@@ -595,10 +754,12 @@ export const VOCAL_EXERCISES: Exercise[] = [
   {
     id: 'mix_mne_111_5_gliss',
     title: 'MNE (111 5 + Glissando)',
+    titleEn: 'MNE (111 5 + Glissando)',
     category: 'Voce Mista',
     description: '3 note fisse (1 1 1), salto al 5° grado e glissando discendente di ritorno alla nota base.',
+    descriptionEn: '3 sustained notes (1 1 1), 5th leap and descending glissando returning to the root note.',
     scalePattern: 'jump_5_1',
-    allowedPatterns: ['jump_5_1', 'triad'],
+    allowedPatterns: ['jump_5_1'],
     defaultVowel: 'MNE',
     defaultTempoBpm: 100,
     recommendedStartMidi: 58,
@@ -608,87 +769,136 @@ export const VOCAL_EXERCISES: Exercise[] = [
       'Canta 1 1 1 su MNE, salta al 5° e scivola con un glissando fino al 1°.',
       'Mantieni lo squillo del suono MNE per tutta la discesa.'
     ],
-    vocalTip: 'Il glissando finale rilassa la muscolatura dopo l\'attacco in salto.'
+    instructionsEn: [
+      'Sing 1 1 1 on MNE, jump to the 5th and slide down with a glissando to the 1st.',
+      'Maintain the bright squillo of the MNE sound throughout the descent.'
+    ],
+    vocalTip: '• Il glissando finale rilassa la muscolatura dopo l\'attacco in salto.\n• Mantieni la risonanza anteriore costante per tutto il passaggio.',
+    vocalTipEn: '• The final glissando relaxes the musculature after the leap attack.\n• Maintain consistent forward resonance throughout the entire passage.'
   },
 
   // --- 3. RISONANZE ---
   {
-    id: 'res_gne_13521',
-    title: 'GNE GNE (135 - 31)',
+    id: 'res_gne',
+    title: 'GNE GNE',
+    titleEn: 'GNE GNE',
     category: 'Risonanze',
-    description: 'Arpeggio 135 - 31 su GNE GNE per attivare la risonanza nasale e la focalizzazione anteriore.',
+    description: 'Esercizio con voce squillante e twang su GNE GNE per proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.',
+    descriptionEn: 'Exercise with bright twang voice on GNE GNE to project sound forward, reduce air leakage, improve vocal fold adduction, and reach high notes with greater ease.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['arpeggio_13521', 'three_notes'],
     defaultVowel: 'GNE GNE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Pronuncia "GNE GNE" sull\'arpeggio 1 3 5 3 1.',
-      'Sfrutta la consonante nasale GN per far risuonare il suono direttamente nella maschera.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione (135 - 31 arpeggio triade oppure 123 - 21 do re mi).',
+      'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
     ],
-    vocalTip: 'Senti la vibrazione concentrata negli zigomi e sul naso.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns (135 - 31 triad arpeggio or 123 - 21 do re mi).',
+      'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.',
+    patternOverrides: {
+      arpeggio_13521: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 135 - 31 (arpeggio triade Do-Mi-Sol-Mi-Do).',
+          'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 135 - 31 pattern (triad arpeggio Do-Mi-Sol-Mi-Do).',
+          'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.'
+      }
+    }
   },
   {
-    id: 'res_gne_12321',
-    title: 'GNE GNE (123 21)',
+    id: 'res_ye',
+    title: 'YE YE YE',
+    titleEn: 'YE YE YE',
     category: 'Risonanze',
-    description: 'Pattern a 3 note 123 21 su GNE GNE per una focalizzazione anteriore senza tensioni.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'GNE GNE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Canta 1 2 3 2 1 pronunciando "GNE GNE".',
-      'Mantieni il suono stretto, squillante e leggero.'
-    ],
-    vocalTip: 'Non spingere volume: cerca la massima nitidezza del timbro.'
-  },
-  {
-    id: 'res_ye_13521',
-    title: 'YE YE YE (135 - 31)',
-    category: 'Risonanze',
-    description: 'Arpeggio 135 - 31 su YE YE YE per proiettare il suono verso il palato duro.',
+    description: 'Esercizio con voce squillante e twang su YE YE YE per proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.',
+    descriptionEn: 'Exercise with bright twang voice on YE YE YE to project sound forward, reduce air leakage, improve vocal fold adduction, and reach high notes with greater ease.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['arpeggio_13521', 'three_notes'],
     defaultVowel: 'YE YE YE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Articola "YE YE YE" sull\'arpeggio 1 3 5 3 1.',
-      'Utilizza la Y iniziale per agganciare il suono in alto sul palato duro.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione (135 - 31 arpeggio triade oppure 123 - 21 do re mi).',
+      'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
     ],
-    vocalTip: 'La consonante Y canalizza le vibrazioni nella cavità orale anteriore.'
-  },
-  {
-    id: 'res_ye_12321',
-    title: 'YE YE YE (123 21)',
-    category: 'Risonanze',
-    description: 'Pattern 123 21 su YE YE YE per una proiezione vocale brillante e bilanciata.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'YE YE YE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Esegui 1 2 3 2 1 dicendo "YE YE YE".',
-      'Mantieni le labbra rilassate e la lingua morbida.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns (135 - 31 triad arpeggio or 123 - 21 do re mi).',
+      'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
     ],
-    vocalTip: 'Il movimento della lingua nella Y sblocca l\'emissione.'
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.',
+    patternOverrides: {
+      arpeggio_13521: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 135 - 31 (arpeggio triade Do-Mi-Sol-Mi-Do).',
+          'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 135 - 31 pattern (triad arpeggio Do-Mi-Sol-Mi-Do).',
+          'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.'
+      }
+    }
   },
   {
     id: 'res_mne_fissa',
     title: 'MNE (Nota Fissa)',
+    titleEn: 'MNE (Sustained Note)',
     category: 'Risonanze',
-    description: 'Ripetizione a nota fissa su MNE per ancorare la risonanza e la brillantezza.',
+    description: 'Esercizio a nota fissa su MNE per stabilizzare l\'adduzione cordale e la maschera.',
+    descriptionEn: 'Sustained note exercise on MNE to stabilize vocal fold adduction and forward mask resonance.',
     scalePattern: 'fixed_3_notes',
     allowedPatterns: ['fixed_3_notes', 'fixed_5_notes'],
     defaultVowel: 'MNE',
@@ -697,34 +907,48 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 3 volte la stessa nota dicendo "MNE".',
-      'Godi del legame tra la M nasale e la E brillante.'
+      'Articola "MNE" tenendo la nota fissa.',
+      'Senti la consonante M nasale che si fonde con la vocale E ben focalizzata.'
     ],
-    vocalTip: 'La consonante M garantisce la conduzione ossea del suono.'
+    instructionsEn: [
+      'Articulate "MNE" holding the sustained note.',
+      'Feel the nasal M consonant blend seamlessly into the focused E vowel.'
+    ],
+    vocalTip: '• Il suono MNE attiva immediatamente l\'assottigliamento delle corde vocali.\n• Mantieni la risonanza anteriore senza spingere aria o forzare la laringe.',
+    vocalTipEn: '• The MNE sound immediately engages thin vocal fold edges.\n• Maintain forward resonance without pushing air or forcing the larynx.'
   },
   {
     id: 'res_mne_111_5_gliss',
-    title: 'MNE (111 5) + Glissando Quinta',
+    title: 'MNE (111 5 + Glissando Quinta)',
+    titleEn: 'MNE (111 5 + 5th Glissando)',
     category: 'Risonanze',
-    description: 'Tre note fisse (1 1 1), salto al 5° e glissando discendente di ritorno alla nota base.',
+    description: '3 note fisse (1 1 1), salto al 5° grado e glissando discendente di ritorno alla nota base.',
+    descriptionEn: '3 sustained notes (1 1 1), 5th leap and descending glissando returning to the root note.',
     scalePattern: 'jump_5_1',
-    allowedPatterns: ['jump_5_1', 'triad'],
+    allowedPatterns: ['jump_5_1'],
     defaultVowel: 'MNE',
     defaultTempoBpm: 100,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 1 1 1 su MNE, salta al 5° e scivola fino al 1°.',
-      'Sfrutta la discesa in glissando per allargare lo spazio di risonanza.'
+      'Canta 1 1 1 su MNE, salta al 5° e scivola con un glissando fino al 1°.',
+      'Mantieni lo squillo del suono MNE per tutta la discesa.'
     ],
-    vocalTip: 'Il glissando morbido pulisce eventuali ruvidità timbriche.'
+    instructionsEn: [
+      'Sing 1 1 1 on MNE, jump to the 5th and slide down with a glissando to the 1st.',
+      'Maintain the bright squillo of the MNE sound throughout the descent.'
+    ],
+    vocalTip: '• Il glissando finale rilassa la muscolatura dopo l\'attacco in salto.\n• Mantieni la risonanza anteriore costante per tutto il passaggio.',
+    vocalTipEn: '• The final glissando relaxes the musculature after the leap attack.\n• Maintain consistent forward resonance throughout the entire passage.'
   },
   {
     id: 'res_mam_fissa',
     title: 'MAM (1 1 1 1 1)',
+    titleEn: 'MAM (1 1 1 1 1)',
     category: 'Risonanze',
-    description: '5 battute a nota fissa su MAM per stabilizzare la risonanza anteriore.',
+    description: '5 ripetizioni a nota fissa su MAM per rinforzare la tenuta del registro misto e la risonanza anteriore.',
+    descriptionEn: '5 sustained repetitions on MAM to reinforce mixed voice stability and forward resonance.',
     scalePattern: 'fixed_5_notes',
     allowedPatterns: ['fixed_5_notes', 'fixed_3_notes'],
     defaultVowel: 'MAM',
@@ -733,34 +957,48 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Ripeti "MAM" 5 volte sulla nota fissa.',
-      'Rimani focalizzato sulle vibrazioni labiali e palatali.'
+      'Ripeti "MAM" per 5 volte sulla stessa nota.',
+      'Mantenere la A ben posizionata senza allargare eccessivamente la bocca.'
     ],
-    vocalTip: 'L\'attacco in M pre-attiva le cavità di risonanza prima di aprire la A.'
+    instructionsEn: [
+      'Repeat "MAM" 5 times on the same note.',
+      'Keep the A vowel well positioned vertically without overly widening the mouth.'
+    ],
+    vocalTip: '• Controlla che ciascun attacco sia identico al precedente.\n• L\'attacco in M pre-attiva le cavità di risonanza prima di aprire la A.',
+    vocalTipEn: '• Check that each onset is identical to the previous one.\n• The M onset pre-activates the resonance cavities before opening the A.'
   },
   {
     id: 'res_mam_11151',
     title: 'MAM (1 1 1 5 1)',
+    titleEn: 'MAM (1 1 1 5 1)',
     category: 'Risonanze',
-    description: 'Note fisse sulla base (1 1 1), salto di quinta al 5° grado e ritorno a 1 con MAM.',
+    description: 'Tre note fisse sulla base (1 1 1), salto di quinta al 5° grado e ritorno a 1 con MAM.',
+    descriptionEn: 'Three sustained root notes (1 1 1), leap of a fifth to the 5th degree, and return to 1 on MAM.',
     scalePattern: 'jump_5_1',
-    allowedPatterns: ['jump_5_1', 'triad'],
+    allowedPatterns: ['jump_5_1'],
     defaultVowel: 'MAM',
     defaultTempoBpm: 105,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 1 1 1 su MAM, salta al 5° e rientra al 1°.',
-      'Prepara il salto mantenendo la posizione della maschera alta.'
+      'Canta 1 1 1 sulla nota base, salta al 5° grado e ritorna a 1.',
+      'Usa l\'ancoraggio addominale per sostenere l\'intervallo di quinta.'
     ],
-    vocalTip: 'Non cambiare la forma della bocca durante il salto di quinta.'
+    instructionsEn: [
+      'Sing 1 1 1 on the root note, leap to the 5th degree and return to 1.',
+      'Use abdominal anchoring and breath support to sustain the interval of a fifth.'
+    ],
+    vocalTip: '• Mantieniti rilassato sul salto senza spingere la laringe in alto.\n• Non cambiare la forma della bocca durante il salto di quinta.',
+    vocalTipEn: '• Stay relaxed on the leap without pushing the larynx upward.\n• Do not alter mouth shape during the leap of a fifth.'
   },
   {
-    id: 'res_chicchi_531',
-    title: 'CHICCHI (531)',
+    id: 'res_chicchi',
+    title: 'CHICCHI',
+    titleEn: 'CHICCHI',
     category: 'Risonanze',
-    description: 'Arpeggio discendente 5 3 1 sul suono nitido CHICCHI per attivare la maschera.',
+    description: 'Esercizio con voce squillante sul suono CHICCHI per attivare la maschera e stringere i formanti della risonanza in alto.',
+    descriptionEn: 'Exercise on CHICCHI to activate mask resonance and focus higher resonant formants with crisp articulation.',
     scalePattern: 'arpeggio_531_desc',
     allowedPatterns: ['arpeggio_531_desc', 'three_notes'],
     defaultVowel: 'CHICCHI',
@@ -769,34 +1007,55 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Esegui l\'arpeggio 5 3 1 pronunciando "CHICCHI".',
-      'Usa l\'attacco secco della CH per centrare l\'energia vocale.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione.',
+      'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
     ],
-    vocalTip: 'La vocale I stringe i formanti della risonanza in alto.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns.',
+      'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.',
+    patternOverrides: {
+      arpeggio_531_desc: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 531 (arpeggio triade discendente Sol-Mi-Do).',
+          'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 531 pattern (descending triad arpeggio Sol-Mi-Do).',
+          'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
-    id: 'res_chicchi_12321',
-    title: 'CHICCHI (123 21)',
+    id: 'res_chiii',
+    title: 'CHIII',
+    titleEn: 'CHIII',
     category: 'Risonanze',
-    description: 'Pattern 123 21 su CHICCHI per sviluppare agilità e risonanza nei toni medi.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_531_desc'],
-    defaultVowel: 'CHICCHI',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Canta 1 2 3 2 1 dicendo "CHICCHI".',
-      'Articola chiaramente le consonanti mantenendo il flusso sonoro continuo.'
-    ],
-    vocalTip: 'Senti la spinta del fiato leggera e direzionata.'
-  },
-  {
-    id: 'res_chiii_531',
-    title: 'CHIII (531)',
-    category: 'Risonanze',
-    description: 'Arpeggio discendente 5 3 1 legato sul suono CHIII per la brillantezza della vocale I.',
+    description: 'Esercizio legato sul suono CHIII per la brillantezza della vocale I e la focalizzazione anteriore.',
+    descriptionEn: 'Legato exercise on the CHIII sound for bright I vowel resonance and focused forward projection.',
     scalePattern: 'arpeggio_531_desc',
     allowedPatterns: ['arpeggio_531_desc', 'three_notes'],
     defaultVowel: 'CHIII',
@@ -805,46 +1064,74 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 5 3 1 prolungando la vocale "CHIII".',
-      'Lascia che la I risuoni nitida nel palato molle e nella maschera.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione.',
+      'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
     ],
-    vocalTip: 'Proietta il suono come un raggio di luce sottile.'
-  },
-  {
-    id: 'res_chiii_12321',
-    title: 'CHIII (123 21)',
-    category: 'Risonanze',
-    description: 'Pattern 123 21 su CHIII per canalizzare la risonanza della I alta.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_531_desc'],
-    defaultVowel: 'CHIII',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Esegui 1 2 3 2 1 con il suono legato "CHIII".',
-      'Rimani sempre agganciato alla risonanza della prima nota.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns.',
+      'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
     ],
-    vocalTip: 'Evita di schiacciare la gola durante la salita.'
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.',
+    patternOverrides: {
+      arpeggio_531_desc: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 531 (arpeggio triade discendente legato Sol-Mi-Do).',
+          'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 531 pattern (legato descending triad arpeggio Sol-Mi-Do).',
+          'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
     id: 'res_ninni_111_333_111',
     title: 'NINNI (111 333 111)',
+    titleEn: 'NINNI (111 333 111)',
     category: 'Risonanze',
-    description: 'Pattern 111 333 111 su NINNI per alternare la nota fondamentale ed il terzo grado con risonanza anteriore.',
+    description: 'Pattern 111 333 111 su NINNI con voce squillante e twang per proiettare il suono in avanti e stimolare un timbro spigoloso.',
+    descriptionEn: 'Pattern 111 333 111 on NINNI with bright twang voice to project sound forward and create an edgy timbre.',
     scalePattern: 'ninni_111_333_111',
-    allowedPatterns: ['ninni_111_333_111', 'three_notes', 'fixed_3_notes'],
+    allowedPatterns: ['ninni_111_333_111'],
     defaultVowel: 'NINNI',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 1 1 1 (Do Do Do), poi 3 3 3 (Mi Mi Mi), poi 1 1 1 (Do Do Do) dicendo "NINNI".',
-      'Sfrutta la N iniziale e la I per far risuonare la voce nella maschera ad ogni cambio.'
+      'Esegui l\'esercizio col pattern melodico a disposizione.',
+      'Canta NINNI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Assicurati di far sentire bene le N e le doppie N che in questo caso ci aiutano a proiettare il suono in avanti e avere un suono più spigoloso.'
     ],
-    vocalTip: 'Il passaggio tra 111 e 333 allena la stabilità del timbro bilanciato.'
+    instructionsEn: [
+      'Perform the exercise with the available melodic pattern.',
+      'Sing NINNI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Make sure to clearly articulate the N and double N consonants, which in this case help project the tone forward and create an edgier sound.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
   },
 
   // --- 4. AGILITÀ ---
@@ -869,82 +1156,126 @@ export const VOCAL_EXERCISES: Exercise[] = [
 
   // --- 5. ADDUZIONE ---
   {
-    id: 'add_gne_13521',
-    title: 'GNE GNE (135 - 31)',
+    id: 'add_gne',
+    title: 'GNE GNE',
+    titleEn: 'GNE GNE',
     category: 'Adduzione',
-    description: 'Arpeggio 135 - 31 su GNE GNE per stimolare l\'adduzione cordale immediata grazie alle consonanti nasali/occlusive.',
+    description: 'Esercizio con voce squillante e twang su GNE GNE per proiettare il suono in avanti, ridurre l\'aria, stimolare l\'adduzione cordale immediata e fare le note alte con più leggerezza.',
+    descriptionEn: 'Exercise with bright twang voice on GNE GNE to project sound forward, eliminate air leakage, stimulate immediate vocal fold adduction, and ease high notes.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['arpeggio_13521', 'three_notes'],
     defaultVowel: 'GNE GNE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Pronuncia "GNE GNE" con decisione sull\'arpeggio 1 3 5 3 1.',
-      'Sfrutta l\'impatto della consonante GN per favorire la chiusura completa delle corde.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione (135 - 31 arpeggio triade oppure 123 - 21 do re mi).',
+      'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
     ],
-    vocalTip: 'L\'attacco in GN azzera la dispersione d\'aria.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns (135 - 31 triad arpeggio or 123 - 21 do re mi).',
+      'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.',
+    patternOverrides: {
+      arpeggio_13521: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 135 - 31 (arpeggio triade Do-Mi-Sol-Mi-Do).',
+          'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 135 - 31 pattern (triad arpeggio Do-Mi-Sol-Mi-Do).',
+          'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta GNE GNE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing GNE GNE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
-    id: 'add_gne_12321',
-    title: 'GNE GNE (123 21)',
+    id: 'add_ye',
+    title: 'YE YE YE',
+    titleEn: 'YE YE YE',
     category: 'Adduzione',
-    description: 'Pattern 123 21 su GNE GNE per allenare l\'adduzione in intervalli ravvicinati.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'GNE GNE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Articola "GNE GNE" sulle note 1 2 3 2 1.',
-      'Mantieni il suono pulito, focalizzato e privo di fiato parassita.'
-    ],
-    vocalTip: 'Concentrati sulla compattezza del timbro.'
-  },
-  {
-    id: 'add_ye_13521',
-    title: 'YE YE YE (135 - 31)',
-    category: 'Adduzione',
-    description: 'Arpeggio 135 - 31 su YE YE YE per un\'adduzione morbida ma definita.',
+    description: 'Esercizio con voce squillante e twang su YE YE YE per proiettare il suono in avanti, ridurre l\'aria, favorire un\'adduzione cordale morbida ma definita e facilitare le note alte.',
+    descriptionEn: 'Exercise with bright twang voice on YE YE YE to project sound forward, eliminate air leakage, promote smooth yet defined adduction, and reach high notes with greater ease.',
     scalePattern: 'arpeggio_13521',
-    allowedPatterns: ['arpeggio_13521', 'triad'],
+    allowedPatterns: ['arpeggio_13521', 'three_notes'],
     defaultVowel: 'YE YE YE',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta "YE YE YE" sull\'arpeggio 1 3 5 3 1.',
-      'Usa la semivocale Y per agganciare le corde vocali senza sforzo.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione (135 - 31 arpeggio triade oppure 123 - 21 do re mi).',
+      'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
     ],
-    vocalTip: 'La Y evita sia l\'attacco glottale duro sia il sospiro.'
-  },
-  {
-    id: 'add_ye_12321',
-    title: 'YE YE YE (123 21)',
-    category: 'Adduzione',
-    description: 'Pattern 123 21 su YE YE YE per consolidare il contatto cordale nei toni medi.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_13521'],
-    defaultVowel: 'YE YE YE',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Esegui 1 2 3 2 1 pronunciando "YE YE YE".',
-      'Assicurati che ogni nota sia intonata e definita.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns (135 - 31 triad arpeggio or 123 - 21 do re mi).',
+      'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
     ],
-    vocalTip: 'Mantieni un flusso d\'aria costante sotto l\'attacco.'
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.\n• Pay attention not to make a purely nasal sound: the tone should be bright and squillante, but not completely in the nose.',
+    patternOverrides: {
+      arpeggio_13521: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 135 - 31 (arpeggio triade Do-Mi-Sol-Mi-Do).',
+          'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 135 - 31 pattern (triad arpeggio Do-Mi-Sol-Mi-Do).',
+          'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta YE YE YE con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Questo suono ci aiuta a proiettare il suono in avanti, ridurre l\'aria, migliorare l\'adduzione cordale e fare le note alte con più leggerezza.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing YE YE YE with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'This sound helps project the tone forward, reduce breathiness, improve vocal fold adduction, and reach high notes with greater ease.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.\n• Presta attenzione a non fare un suono puramente nasale: il suono deve essere squillante ma non totalmente nel naso.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
     id: 'add_mne_fissa',
-    title: 'MNE (Stessa Nota)',
+    title: 'MNE (Nota Fissa)',
+    titleEn: 'MNE (Sustained Note)',
     category: 'Adduzione',
-    description: 'Ripetizione a nota fissa su MNE per verificare e stabilizzare la tenuta cordale.',
+    description: 'Esercizio a nota fissa su MNE per stabilizzare l\'adduzione cordale e la maschera.',
+    descriptionEn: 'Sustained note exercise on MNE to stabilize vocal fold adduction and forward mask resonance.',
     scalePattern: 'fixed_3_notes',
     allowedPatterns: ['fixed_3_notes', 'fixed_5_notes'],
     defaultVowel: 'MNE',
@@ -953,16 +1284,23 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Pronuncia "MNE" per 3 volte sulla stessa nota.',
-      'Verifica che ogni attacco cordale sia identico e pulito.'
+      'Articola "MNE" tenendo la nota fissa.',
+      'Senti la consonante M nasale che si fonde con la vocale E ben focalizzata.'
     ],
-    vocalTip: 'La sequenza M-N-E assicura il massimo contatto tra le corde vocali.'
+    instructionsEn: [
+      'Articulate "MNE" holding the sustained note.',
+      'Feel the nasal M consonant blend seamlessly into the focused E vowel.'
+    ],
+    vocalTip: '• Il suono MNE attiva immediatamente l\'assottigliamento delle corde vocali.\n• Mantieni la risonanza anteriore senza spingere aria o forzare la laringe.',
+    vocalTipEn: '• The MNE sound immediately engages thin vocal fold edges.\n• Maintain forward resonance without pushing air or forcing the larynx.'
   },
   {
     id: 'add_mam_fissa',
     title: 'MAM (1 1 1 1 1)',
+    titleEn: 'MAM (1 1 1 1 1)',
     category: 'Adduzione',
-    description: '5 ripetizioni a nota fissa su MAM per rinforzare l\'adduzione cordale uniforme.',
+    description: '5 ripetizioni a nota fissa su MAM per rinforzare la tenuta dell\'adduzione cordale e del registro misto.',
+    descriptionEn: '5 sustained repetitions on MAM to reinforce vocal fold adduction and mixed voice stability.',
     scalePattern: 'fixed_5_notes',
     allowedPatterns: ['fixed_5_notes', 'fixed_3_notes'],
     defaultVowel: 'MAM',
@@ -971,34 +1309,48 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta "MAM" 5 volte di seguito sulla medesima nota.',
-      'Mantieni l\'attacco preciso senza far sfuggire aria prima del suono.'
+      'Ripeti "MAM" per 5 volte sulla stessa nota.',
+      'Mantenere la A ben posizionata senza allargare eccessivamente la bocca.'
     ],
-    vocalTip: 'L\'esplosione morbida della M garantisce una chiusura senza traumi.'
+    instructionsEn: [
+      'Repeat "MAM" 5 times on the same note.',
+      'Keep the A vowel well positioned vertically without overly widening the mouth.'
+    ],
+    vocalTip: '• Controlla che ciascun attacco sia identico al precedente.\n• L\'attacco in M pre-attiva le cavità di risonanza prima di aprire la A.',
+    vocalTipEn: '• Check that each onset is identical to the previous one.\n• The M onset pre-activates the resonance cavities before opening the A.'
   },
   {
     id: 'add_mam_11151',
     title: 'MAM (1 1 1 5 1)',
+    titleEn: 'MAM (1 1 1 5 1)',
     category: 'Adduzione',
-    description: 'Ancoraggio sulla nota base (1 1 1), salto di quinta al 5° e ritorno a 1 con MAM.',
+    description: 'Tre note fisse sulla base (1 1 1), salto di quinta al 5° grado e ritorno a 1 con MAM per verificare la tenuta cordale in movimento.',
+    descriptionEn: 'Three sustained root notes (1 1 1), leap of a fifth to the 5th degree, and return to 1 on MAM.',
     scalePattern: 'jump_5_1',
-    allowedPatterns: ['jump_5_1', 'triad'],
+    allowedPatterns: ['jump_5_1'],
     defaultVowel: 'MAM',
     defaultTempoBpm: 105,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Ripeti 1 1 1 su MAM, salta al 5° grado e torna alla nota fondamentale.',
-      'Manda l\'aria con precisione durante il salto senza perdere l\'adduzione.'
+      'Canta 1 1 1 sulla nota base, salta al 5° grado e ritorna a 1.',
+      'Usa l\'ancoraggio addominale per sostenere l\'intervallo di quinta.'
     ],
-    vocalTip: 'Non allargare troppo le corde durante l\'intervallo.'
+    instructionsEn: [
+      'Sing 1 1 1 on the root note, leap to the 5th degree and return to 1.',
+      'Use abdominal anchoring and breath support to sustain the interval of a fifth.'
+    ],
+    vocalTip: '• Mantieniti rilassato sul salto senza spingere la laringe in alto.\n• Non cambiare la forma della bocca durante il salto di quinta.',
+    vocalTipEn: '• Stay relaxed on the leap without pushing the larynx upward.\n• Do not alter mouth shape during the leap of a fifth.'
   },
   {
-    id: 'add_chicchi_531',
-    title: 'CHICCHI (531)',
+    id: 'add_chicchi',
+    title: 'CHICCHI',
+    titleEn: 'CHICCHI',
     category: 'Adduzione',
-    description: 'Arpeggio discendente 5 3 1 su CHICCHI per un\'adduzione nitida guidata da consonante occlusiva.',
+    description: 'Esercizio con voce squillante sul suono CHICCHI per un\'adduzione nitida guidata dalla consonante occlusiva CH e per togliere l\'ariosità.',
+    descriptionEn: 'Exercise with bright twang voice on CHICCHI for crisp adduction guided by the CH stop consonant to eliminate breathiness.',
     scalePattern: 'arpeggio_531_desc',
     allowedPatterns: ['arpeggio_531_desc', 'three_notes'],
     defaultVowel: 'CHICCHI',
@@ -1007,34 +1359,55 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 5 3 1 pronunciando "CHICCHI".',
-      'Usa l\'attacco breve della CH per chiudere istantaneamente le corde.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione.',
+      'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
     ],
-    vocalTip: 'Il suono CHI attiva l\'adduzione cordale in modo immediato.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns.',
+      'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.',
+    patternOverrides: {
+      arpeggio_531_desc: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 531 (arpeggio triade discendente Sol-Mi-Do).',
+          'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 531 pattern (descending triad arpeggio Sol-Mi-Do).',
+          'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta CHICCHI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Assicurati di far sentire bene le C e le doppie C che in questo caso ci aiutano a togliere l\'ariosità.'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing CHICCHI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Make sure to clearly articulate the C and double C consonants, which in this case help eliminate breathiness.'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
-    id: 'add_chicchi_12321',
-    title: 'CHICCHI (123 21)',
+    id: 'add_chiii',
+    title: 'CHIII',
+    titleEn: 'CHIII',
     category: 'Adduzione',
-    description: 'Pattern 123 21 su CHICCHI per rafforzare la tenuta cordale in movimento.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_531_desc'],
-    defaultVowel: 'CHICCHI',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Esegui 1 2 3 2 1 articulando "CHICCHI".',
-      'Senti la pulizia di ogni singola nota.'
-    ],
-    vocalTip: 'Evita colpi eccessivi, mantieni l\'attacco elastico.'
-  },
-  {
-    id: 'add_chiii_531',
-    title: 'CHIII (531)',
-    category: 'Adduzione',
-    description: 'Arpeggio 5 3 1 legato su CHIII per mantenere l\'adduzione continua sulla vocale I.',
+    description: 'Esercizio legato sul suono CHIII per mantenere un\'adduzione cordale continua e brillante senza l\'aiuto della doppia consonante.',
+    descriptionEn: 'Legato exercise on the CHIII sound to maintain continuous and bright vocal fold adduction without the aid of a double stop consonant.',
     scalePattern: 'arpeggio_531_desc',
     allowedPatterns: ['arpeggio_531_desc', 'three_notes'],
     defaultVowel: 'CHIII',
@@ -1043,46 +1416,74 @@ export const VOCAL_EXERCISES: Exercise[] = [
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Esegui 5 3 1 prolungando la vocale "CHIII".',
-      'Verifica che il suono non presenti velature di aria.'
+      'Esegui l\'esercizio con uno dei due pattern melodici a disposizione.',
+      'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
     ],
-    vocalTip: 'La vocale I favorisce il contatto uniforme dei margini cordali.'
-  },
-  {
-    id: 'add_chiii_12321',
-    title: 'CHIII (123 21)',
-    category: 'Adduzione',
-    description: 'Pattern 123 21 su CHIII per un legato adotto e brillante.',
-    scalePattern: 'three_notes',
-    allowedPatterns: ['three_notes', 'arpeggio_531_desc'],
-    defaultVowel: 'CHIII',
-    defaultTempoBpm: 115,
-    recommendedStartMidi: 58,
-    recommendedEndMidi: 72,
-    direction: 'asc_desc',
-    instructions: [
-      'Canta 1 2 3 2 1 mantenendo il legato su "CHIII".',
-      'Assicurati che non ci sia perdita d\'aria tra un cambio di nota e l\'altro.'
+    instructionsEn: [
+      'Perform the exercise with one of the two available melodic patterns.',
+      'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
     ],
-    vocalTip: 'Guida il fiato senza spingere dalla gola.'
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.',
+    patternOverrides: {
+      arpeggio_531_desc: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 531 (arpeggio triade discendente legato Sol-Mi-Do).',
+          'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 531 pattern (legato descending triad arpeggio Sol-Mi-Do).',
+          'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      },
+      three_notes: {
+        instructions: [
+          'Esegui l\'esercizio sul pattern 123 - 21 (do re mi - re do).',
+          'Canta CHIII con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+          'Qui non hai la doppia C che ti aiuta a togliere aria, quindi è compito tuo cercare di mantenere la stessa risonanza squillante e avrai bisogno di concentrarti!'
+        ],
+        instructionsEn: [
+          'Perform the exercise on the 123 - 21 pattern (do-re-mi-re-do).',
+          'Sing CHIII with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+          'Here you do not have the double C to help remove air, so it is your job to maintain the same bright squillante resonance and you will need to concentrate!'
+        ],
+        vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+        vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
+      }
+    }
   },
   {
     id: 'add_ninni_111_333_111',
     title: 'NINNI (111 333 111)',
+    titleEn: 'NINNI (111 333 111)',
     category: 'Adduzione',
-    description: 'Pattern 111 333 111 su NINNI per alternare stabilità e salto d\'intervallo con eccellente adduzione.',
+    description: 'Pattern 111 333 111 su NINNI con voce squillante e twang per proiettare il suono in avanti, alternare gradi e stimolare una salda adduzione.',
+    descriptionEn: 'Pattern 111 333 111 on NINNI with bright twang voice to project sound forward and maintain solid vocal fold adduction across intervals.',
     scalePattern: 'ninni_111_333_111',
-    allowedPatterns: ['ninni_111_333_111', 'three_notes', 'fixed_3_notes'],
+    allowedPatterns: ['ninni_111_333_111'],
     defaultVowel: 'NINNI',
     defaultTempoBpm: 110,
     recommendedStartMidi: 58,
     recommendedEndMidi: 72,
     direction: 'asc_desc',
     instructions: [
-      'Canta 111 (Do Do Do), 333 (Mi Mi Mi), 111 (Do Do Do) dicendo "NINNI".',
-      'La consonante N garantisce un attacco cordale morbido ma perfettamente sigillato.'
+      'Esegui l\'esercizio col pattern melodico a disposizione.',
+      'Canta NINNI con una voce squillante, con twang, brutta, da strega (chiamala come vuoi).',
+      'Assicurati di far sentire bene le N e le doppie N che in questo caso ci aiutano a proiettare il suono in avanti e avere un suono più spigoloso.'
     ],
-    vocalTip: 'Mantieni l\'adduzione cordale ferma su entrambi i gradi della scala.'
+    instructionsEn: [
+      'Perform the exercise with the available melodic pattern.',
+      'Sing NINNI with a bright, squillante voice, with twang, ugly, like a witch (call it what you like).',
+      'Make sure to clearly articulate the N and double N consonants, which in this case help project the tone forward and create an edgier sound.'
+    ],
+    vocalTip: '• È molto comune diminuire l\'intensità dello squillo man mano che vai avanti: è normale, finché non ti abitui. Quindi puoi provare a registrarti per sentire quando lo diminuisci, ma in ogni caso ci saranno le istruzioni nel player che ogni tanto ti ricorderanno cosa devi fare.',
+    vocalTipEn: '• It is very common to reduce the intensity of the squillo/twang as you progress: this is normal until you get used to it. You can try recording yourself to hear when it drops, but in any case the player reminders will occasionally prompt you on what to do.'
   },
   {
     id: 'add_he_13_15_18',

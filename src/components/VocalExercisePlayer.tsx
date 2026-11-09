@@ -4,7 +4,8 @@ import { VOCAL_EXERCISES } from '../data/exercises';
 import { getNoteInfo, getScaleOffsets, playPianoNote, playPianoChord, playSirenGlide, playMetronomeClick, getAudioContext } from '../utils/audioSynth';
 import { PitchDetector } from '../utils/pitchDetector';
 import { InteractivePiano } from './InteractivePiano';
-import { Play, Pause, Square, Mic, MicOff, Sparkles, CheckCircle2, Zap, Music, Volume2, VolumeX, Sliders, ArrowUp, ArrowDown, ArrowUpDown, Repeat, Gauge, BookOpen, Lightbulb, ChevronDown, Target, Wind, ArrowRight, ArrowLeft, X } from 'lucide-react';
+import { ExerciseDemoAudioPlayer } from './ExerciseDemoAudioPlayer';
+import { Play, Pause, Square, Mic, MicOff, Sparkles, CheckCircle2, Zap, Music, Volume2, VolumeX, Sliders, ArrowUp, ArrowDown, ArrowUpDown, Repeat, Gauge, BookOpen, Lightbulb, ChevronDown, Target, Wind, ArrowRight, ArrowLeft, X, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useRoutineQueue } from '../context/RoutineQueueContext';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +69,10 @@ const ALL_SCALE_PATTERNS: { id: ScalePatternId; label: string }[] = [
   { id: 'ma_mo_ma_run', label: '27. 1358 12321 1358 - arpeggio composto' },
 ];
 
-const getScalePatternLabel = (pat: { id: ScalePatternId; label: string }, lang: string) => {
+const getScalePatternLabel = (pat: { id: ScalePatternId; label: string }, lang: string, exerciseId?: string) => {
+  if (exerciseId === 'mix_mee_gliss_151' && pat.id === 'gliss_1_5_1') {
+    return lang === 'en' ? '5. 1 5 1 - slow glissando' : '5. 1 5 1 - glissando lento';
+  }
   if (lang === 'en') {
     switch (pat.id) {
       case 'gliss_5_1_desc': return '3. 5 1 - descending 5th glissando';
@@ -363,8 +367,15 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
 
   const { isSubscribed, openSubscriptionModal } = useAuth();
 
-  // Rules: Unsubscribed users have full access ONLY to LIP THRILL 12345
-  const isExerciseFree = (exId: string) => exId === 'lip_thrill_warmup';
+  // Rules: Warm-up SOVT exercises (Lip Thrill, Cannuccia, Trillo, VVV, ZZZ, Pesce Palla) are unlocked for warmup
+  const isExerciseFree = (exId: string) =>
+    exId === 'lip_thrill_warmup' ||
+    exId === 'cannuccia_sovt' ||
+    exId === 'trillo_sovt' ||
+    exId === 'vvv_sovt' ||
+    exId === 'zzz_sovt' ||
+    exId === 'pesce_palla_sovt' ||
+    exId.endsWith('_sovt');
   const isPatternFree = (patId: ScalePatternId) => patId === 'five_notes';
 
   const displayCategories = allowedCategories
@@ -396,6 +407,12 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
 
     if (step.exerciseId) {
       matched = VOCAL_EXERCISES.find(ex => ex.id === step.exerciseId);
+      if (!matched) {
+        if (step.exerciseId.startsWith('res_gne')) matched = VOCAL_EXERCISES.find(ex => ex.id === 'res_gne');
+        else if (step.exerciseId.startsWith('res_ye')) matched = VOCAL_EXERCISES.find(ex => ex.id === 'res_ye');
+        else if (step.exerciseId.startsWith('res_chicchi')) matched = VOCAL_EXERCISES.find(ex => ex.id === 'res_chicchi');
+        else if (step.exerciseId.startsWith('res_chiii')) matched = VOCAL_EXERCISES.find(ex => ex.id === 'res_chiii');
+      }
     }
 
     if (!matched) {
@@ -412,8 +429,8 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
         if (searchContext.includes('sovt')) return ex.id === 'lip_thrill_warmup';
         if (searchContext.includes('mum')) return ex.id === 'mix_mum';
         if (searchContext.includes('mam')) {
-          if (searchContext.includes('11151') || searchContext.includes('jump')) return ex.id === 'mix_mam_11151';
-          return ex.id === 'mix_mam_fissa' || ex.id === 'vocalizzo_mam_fissa';
+          if (searchContext.includes('11151') || searchContext.includes('jump')) return ex.id === 'mix_mam_11151' || ex.id === 'res_mam_11151' || ex.id === 'add_mam_11151';
+          return ex.id === 'mix_mam_fissa' || ex.id === 'res_mam_fissa' || ex.id === 'add_mam_fissa';
         }
         if (searchContext.includes('meee') && !searchContext.includes('mmm')) return ex.id === 'mix_meee';
         if (searchContext.includes('mmm') && (searchContext.includes('me') || searchContext.includes('mee'))) {
@@ -422,11 +439,15 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
         if (searchContext.includes('mmm')) return ex.id === 'mmm_vocalizzo';
         if (searchContext.includes('uuuh')) return ex.id === 'uuuh_vocalizzo';
         if (searchContext.includes('wee')) return ex.id === 'wee_defaticamento';
-        if (searchContext.includes('gne')) return ex.id === 'gne_squillo' || ex.id === 'gne_gne_gne';
+        if (searchContext.includes('gne')) return ex.id === 'res_gne' || ex.id === 'add_gne' || ex.id === 'mix_gne_13521';
+        if (searchContext.includes('ye')) return ex.id === 'res_ye' || ex.id === 'add_ye' || ex.id === 'mix_ye_13521';
+        if (searchContext.includes('chicchi')) return ex.id === 'res_chicchi' || ex.id === 'add_chicchi';
+        if (searchContext.includes('chiii')) return ex.id === 'res_chiii' || ex.id === 'add_chiii';
+        if (searchContext.includes('ninni')) return ex.id === 'res_ninni_111_333_111' || ex.id === 'add_ninni_111_333_111';
         if (searchContext.includes('nay')) return ex.id === 'mix_nay' || ex.id === 'nay_mix' || ex.id === 'nay_135';
         if (searchContext.includes('mne')) {
-          if (searchContext.includes('gliss')) return ex.id === 'mix_mne_111_5_gliss';
-          return ex.id === 'mne_nota_fissa' || ex.id === 'mix_mne_fissa';
+          if (searchContext.includes('gliss')) return ex.id === 'mix_mne_111_5_gliss' || ex.id === 'res_mne_111_5_gliss';
+          return ex.id === 'mix_mne_fissa' || ex.id === 'res_mne_fissa' || ex.id === 'add_mne_fissa';
         }
         if (searchContext.includes('ottava') || searchContext.includes('1 3 5 8')) return ex.id === 'lip_thrill_warmup' || ex.id === 'arpeggio_ottava';
         return exTitle === searchContext;
@@ -524,10 +545,11 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
   const [transposeDirection, setTransposeDirection] = useState<'up' | 'down'>('up');
   const [transposeStep, setTransposeStep] = useState<number>(1); // 1 = semitono, 2 = 1 tono
   const [includeMetronome, setIncludeMetronome] = useState<boolean>(true);
+  const [includePiano, setIncludePiano] = useState<boolean>(true);
   const [accompanimentMode, setAccompanimentMode] = useState<'all_notes' | 'chord_only'>('all_notes');
   const [selectedScalePattern, setSelectedScalePattern] = useState<ScalePatternId>(selectedExercise.scalePattern);
-  const [pianoVolume, setPianoVolume] = useState<number>(0.9);
-  const [metronomeVolume, setMetronomeVolume] = useState<number>(0.85);
+  const [pianoVolume, setPianoVolume] = useState<number>(0.5);
+  const [metronomeVolume, setMetronomeVolume] = useState<number>(0.5);
 
   const isCurrentExercisePlayable =
     isSubscribed || (isExerciseFree(selectedExercise.id) && isPatternFree(selectedScalePattern));
@@ -554,9 +576,13 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
 
   // Refs for smooth sequencer timing without restarting timer on key change
   const currentRootMidiRef = useRef(currentRootMidi);
+  const sessionStartMidiRef = useRef<number>(currentRootMidi);
   useEffect(() => {
     currentRootMidiRef.current = currentRootMidi;
-  }, [currentRootMidi]);
+    if (!isPlaying) {
+      sessionStartMidiRef.current = currentRootMidi;
+    }
+  }, [currentRootMidi, isPlaying]);
 
   const transposeDirectionRef = useRef(transposeDirection);
   useEffect(() => {
@@ -572,6 +598,11 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
   useEffect(() => {
     pianoVolumeRef.current = pianoVolume;
   }, [pianoVolume]);
+
+  const includePianoRef = useRef(includePiano);
+  useEffect(() => {
+    includePianoRef.current = includePiano;
+  }, [includePiano]);
 
   const metronomeVolumeRef = useRef(metronomeVolume);
   useEffect(() => {
@@ -647,28 +678,81 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
     };
   }, [micActive]);
 
+  // Handle spacebar shortcut for play/pause (Barra Spaziatrice del computer)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack spacebar if user is typing in an input, textarea, select or contentEditable element
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          target.getAttribute('role') === 'textbox')
+      ) {
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault(); // Prevent standard page scroll
+        if (isPlaying) {
+          setIsPlaying(false);
+        } else {
+          try {
+            const ctx = getAudioContext();
+            if (ctx && ctx.state === 'suspended') {
+              ctx.resume().catch(() => {});
+            }
+          } catch {}
+
+          if (!isCurrentExercisePlayable) {
+            openSubscriptionModal(
+              language === 'en'
+                ? 'To play this exercise and unlock the full vocal catalog, choose your Echora subscription.'
+                : 'Per avviare questo esercizio e sbloccare tutti i contenuti di Echora, scegli il tuo abbonamento.'
+            );
+            return;
+          }
+          setIsPlaying(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPlaying, isCurrentExercisePlayable, language, openSubscriptionModal]);
+
   // Compute scale pattern notes for current root note
   const offsets = getScaleOffsets(selectedScalePattern);
   const currentScaleMidis = offsets.map((off) => currentRootMidi + off);
 
   // Helper to calculate upcoming root midi and transpose direction
   const computeNextRootMidi = (current: number, dir: 'up' | 'down') => {
-    if (!autoTranspose) return { nextMidi: current, nextDir: dir };
+    if (!autoTranspose) return { nextMidi: current, nextDir: dir, shouldStop: false };
     const step = transposeStepRef.current;
     if (dir === 'up') {
       const candidate = current + step;
-      const maxMidi = vocalProfile ? vocalProfile.highestMidi - 5 : selectedExercise.recommendedEndMidi;
+      const maxMidi = vocalProfile
+        ? Math.max(vocalProfile.highestMidi - 5, selectedExercise.recommendedStartMidi + 5)
+        : selectedExercise.recommendedEndMidi;
       if (candidate >= maxMidi) {
-        return { nextMidi: current - step, nextDir: 'down' as const };
+        return { nextMidi: Math.max(36, current - step), nextDir: 'down' as const, shouldStop: false };
       }
-      return { nextMidi: candidate, nextDir: 'up' as const };
+      return { nextMidi: Math.min(84, candidate), nextDir: 'up' as const, shouldStop: false };
     } else {
       const candidate = current - step;
-      const minMidi = vocalProfile ? vocalProfile.lowestMidi : selectedExercise.recommendedStartMidi;
-      if (candidate <= minMidi) {
-        return { nextMidi: current + step, nextDir: 'up' as const };
+      const absoluteFloor = 36;
+      const lowestAllowed = vocalProfile
+        ? Math.max(absoluteFloor, vocalProfile.lowestMidi)
+        : Math.max(absoluteFloor, Math.min(selectedExercise.recommendedStartMidi, sessionStartMidiRef.current) - 6);
+
+      if (candidate < lowestAllowed) {
+        return { nextMidi: current, nextDir: 'down' as const, shouldStop: true };
       }
-      return { nextMidi: candidate, nextDir: 'down' as const };
+      return { nextMidi: candidate, nextDir: 'down' as const, shouldStop: false };
     }
   };
 
@@ -734,7 +818,25 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
         if (autoTranspose) {
           const current = currentRootMidiRef.current;
           const dir = transposeDirectionRef.current;
-          const { nextMidi, nextDir } = computeNextRootMidi(current, dir);
+          const { nextMidi, nextDir, shouldStop } = computeNextRootMidi(current, dir);
+
+          if (shouldStop) {
+            setIsPlaying(false);
+            if (startTimeRef.current) {
+              const elapsedSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+              if (elapsedSec > 5) {
+                onExerciseComplete(selectedExercise.title, elapsedSec);
+              }
+              startTimeRef.current = null;
+            }
+            setActiveTip(
+              language === 'en'
+                ? 'Descent completed! Exercise finished.'
+                : 'Discesa completata! Esercizio terminato.'
+            );
+            return;
+          }
+
           currentRootMidiRef.current = nextMidi;
           transposeDirectionRef.current = nextDir;
           setCurrentRootMidi(nextMidi);
@@ -779,14 +881,18 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
       const isGliss = ['siren_glide', 'gliss_5_1_desc', 'gliss_1_5_1', 'gliss_1_5'].includes(selectedScalePattern);
 
       // Helper functions for scaled volume output
+      const effectivePianoVol = includePianoRef.current ? pianoVolumeRef.current : 0;
       const playNote = (midi: number, durationSec: number) => {
-        playPianoNote(midi, durationSec, Math.min(1.0, 0.95 * pianoVolumeRef.current));
+        if (effectivePianoVol <= 0) return;
+        playPianoNote(midi, durationSec, 1.45 * effectivePianoVol);
       };
       const playChord = (rootMidi: number, durationSec: number) => {
-        playPianoChord(rootMidi, durationSec, Math.min(1.0, 0.90 * pianoVolumeRef.current));
+        if (effectivePianoVol <= 0) return;
+        playPianoChord(rootMidi, durationSec, 1.35 * effectivePianoVol);
       };
       const playChordSoft = (rootMidi: number, durationSec: number) => {
-        playPianoChord(rootMidi, durationSec, Math.min(1.0, 0.85 * pianoVolumeRef.current));
+        if (effectivePianoVol <= 0) return;
+        playPianoChord(rootMidi, durationSec, 1.25 * effectivePianoVol);
       };
 
       if (isGliss) {
@@ -1442,6 +1548,14 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
         startTimeRef.current = null;
       }
     } else {
+      if (!isCurrentExercisePlayable) {
+        openSubscriptionModal(
+          language === 'en'
+            ? 'To play this exercise and unlock the full vocal catalog, choose your Echora subscription. Only Lip Thrill 12345 is free.'
+            : 'Per avviare questo esercizio e sbloccare tutti i contenuti di Echora, scegli il tuo abbonamento. Il Lip Thrill 12345 rimane completamente gratuito.'
+        );
+        return;
+      }
       setIsPlaying(true);
     }
   };
@@ -1631,13 +1745,19 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                 </h3>
                 <div className="space-y-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
                   <p>
-                    {language === 'en' ? 'SOVT (Semi-Occluded Vocal Tract) exercises use a semi-occluded vocal tract.' : 'Gli esercizi SOVT (Semi-Occluded Vocal Tract) sono esercizi a tratto vocale semi-occluso.'}
+                    {language === 'en'
+                      ? 'SOVT (Semi-Occluded Vocal Tract) exercises use a semi-occluded vocal tract.'
+                      : 'Gli esercizi SOVT (Semi-Occluded Vocal Tract) sono esercizi a tratto vocale, semi occluso.'}
                   </p>
                   <p>
-                    {language === 'en' ? 'They are among the most gentle and effective ways to start vocal training: back-pressure balances the vocal folds for greater ease.' : 'Sono tra i modi più delicati ed efficaci per iniziare ad allenare la voce: una parte della pressione dell\'aria viene riflessa verso le corde vocali, aiutandole a lavorare con maggiore equilibrio e minore sforzo.'}
+                    {language === 'en'
+                      ? 'This means that when we do the exercise, part of the air is released outward and the rest is reflected back toward the vocal cords, helping them work with greater balance and less effort.'
+                      : 'Questo significa che quando facciamo l\'esercizio una parte dell\'aria viene buttata fuori e l\'altra viene riflessa verso le corde vocali, aiutandola a lavorare con maggiore equilibrio e minore sforzo.'}
                   </p>
                   <p className="text-pink-200 font-semibold italic">
-                    {language === 'en' ? 'These are my favorite warm-up exercises and I highly recommend using them often.' : 'Sono i miei esercizi preferiti per il riscaldamento e consiglio di usarli spesso.'}
+                    {language === 'en'
+                      ? 'This makes them excellent exercises to start vocal activity and warming up, which is why they are my favorite exercises to warm up the voice and the ones I recommend the most.'
+                      : 'Questo li rende degli ottimi esercizi per iniziare l\'attività vocale e quindi il riscaldamento ed è per questo che sono i miei esercizi preferiti da utilizzare per scaldare la voce e sono anche quelli che consiglio di più.'}
                   </p>
                 </div>
               </div>
@@ -1651,11 +1771,11 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                     value={selectedExercise.category === 'SOVT' ? selectedExercise.id : ''}
                     onChange={(e) => {
                       const chosenId = e.target.value;
-                      if (!isSubscribed && chosenId !== 'lip_thrill_warmup') {
+                      if (!isSubscribed && !isExerciseFree(chosenId)) {
                         openSubscriptionModal(
                           language === 'en'
-                            ? 'Only Lip Thrill 12345 is free. To unlock all other SOVT exercises, choose your Echora subscription.'
-                            : 'Solo il Lip Thrill 12345 è gratuito. Per sbloccare tutti gli altri esercizi SOVT, scegli il tuo abbonamento Echora.'
+                            ? 'To unlock this exercise, choose your Echora subscription.'
+                            : 'Per sbloccare questo esercizio, scegli il tuo abbonamento Echora.'
                         );
                         return;
                       }
@@ -1676,7 +1796,7 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                       </option>
                     )}
                     {VOCAL_EXERCISES.filter((ex) => ex.category === 'SOVT').map((ex) => {
-                      const isLocked = !isSubscribed && ex.id !== 'lip_thrill_warmup';
+                      const isLocked = !isSubscribed && !isExerciseFree(ex.id);
                       return (
                         <option 
                           key={ex.id} 
@@ -1801,7 +1921,16 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                         <select
                           value={isCatSelected ? selectedExercise.id : ''}
                           onChange={(e) => {
-                            const ex = VOCAL_EXERCISES.find((item) => item.id === e.target.value);
+                            const chosenId = e.target.value;
+                            if (!isSubscribed && chosenId !== 'lip_thrill_warmup') {
+                              openSubscriptionModal(
+                                language === 'en'
+                                  ? 'Workout exercises are available with an Echora subscription. Only Lip Thrill 12345 is free. Choose your Echora subscription to unlock them all!'
+                                  : 'Tutti gli esercizi di allenamento sono inclusi nell\'abbonamento Echora. Solo il Lip Thrill 12345 è gratuito. Scegli il tuo abbonamento per sbloccarli!'
+                              );
+                              return;
+                            }
+                            const ex = VOCAL_EXERCISES.find((item) => item.id === chosenId);
                             if (ex) {
                               setIsPlaying(false);
                               setActiveCategory(block.id);
@@ -1817,11 +1946,18 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                               {language === 'en' ? '-- Choose an exercise --' : '-- Scegli un esercizio --'}
                             </option>
                           )}
-                          {exercisesInCat.map((ex) => (
-                            <option key={ex.id} value={ex.id} className="bg-slate-900 text-white font-bold py-1.5">
-                              {language === 'en' && ex.titleEn ? ex.titleEn : ex.title}
-                            </option>
-                          ))}
+                          {exercisesInCat.map((ex) => {
+                            const isLocked = !isSubscribed && ex.id !== 'lip_thrill_warmup';
+                            return (
+                              <option 
+                                key={ex.id} 
+                                value={ex.id} 
+                                className={`bg-slate-900 py-1.5 ${isLocked ? 'text-slate-500 font-normal' : 'text-white font-bold'}`}
+                              >
+                                {isLocked ? `🔒 ${language === 'en' && ex.titleEn ? ex.titleEn : ex.title} (Abbonamento)` : (language === 'en' && ex.titleEn ? ex.titleEn : ex.title)}
+                              </option>
+                            );
+                          })}
                         </select>
                         <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 ${block.textColor}`}>
                           <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
@@ -1838,64 +1974,153 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
         )}
 
         {/* 🌟 EXPLANATION CARD - Directly below Exercise Selector Dropdown 🌟 */}
-        <div className={`bg-gradient-to-r ${accentCardGradient} border ${accentBorder} rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3.5`}>
-          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b ${accentBorderSubtle} pb-3`}>
-            <div className="flex items-center space-x-2.5">
-              <div className={`p-2 rounded-xl ${accentBadgeBg}`}>
-                <BookOpen className={`w-5 h-5 ${accentText}`} />
+        {(() => {
+          const currentPatternObj = availableScalePatterns.find((p) => p.id === selectedScalePattern);
+          const currentPatternName = currentPatternObj ? getScalePatternLabel(currentPatternObj, language, selectedExercise.id) : undefined;
+
+          const activePatternOverride = selectedExercise.patternOverrides?.[selectedScalePattern];
+
+          const displayInstructions: string[] = (language === 'en' && activePatternOverride?.instructionsEn)
+            ? activePatternOverride.instructionsEn
+            : activePatternOverride?.instructions
+            ? activePatternOverride.instructions
+            : (language === 'en' && selectedExercise.instructionsEn)
+            ? selectedExercise.instructionsEn
+            : selectedExercise.instructions;
+
+          const displayVocalTip: string = (language === 'en' && activePatternOverride?.vocalTipEn)
+            ? activePatternOverride.vocalTipEn
+            : activePatternOverride?.vocalTip
+            ? activePatternOverride.vocalTip
+            : (language === 'en' && selectedExercise.vocalTipEn)
+            ? selectedExercise.vocalTipEn
+            : selectedExercise.vocalTip;
+
+          return (
+            <div className={`bg-gradient-to-r ${accentCardGradient} border ${accentBorder} rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3.5`}>
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b ${accentBorderSubtle} pb-3`}>
+                <div className="flex items-center space-x-2.5">
+                  <div className={`p-2 rounded-xl ${accentBadgeBg}`}>
+                    <BookOpen className={`w-5 h-5 ${accentText}`} />
+                  </div>
+                  <div>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${accentTextBright}`}>
+                      {t('howToPerform')}
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      {language === 'en' && selectedExercise.titleEn ? selectedExercise.titleEn : selectedExercise.title}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <ExerciseDemoAudioPlayer
+                    exerciseId={selectedExercise.id}
+                    patternId={selectedScalePattern}
+                    patternName={currentPatternName}
+                    allowedPatterns={selectedExercise.allowedPatterns}
+                    exerciseTitle={language === 'en' && selectedExercise.titleEn ? selectedExercise.titleEn : selectedExercise.title}
+                    accentText={accentText}
+                    accentBorder={accentBorderSubtle}
+                    accentBg={accentBadgeBg}
+                  />
+
+                  {selectedExercise.targetFocus && (
+                    <span className="text-[11px] font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60 hidden sm:inline-block">
+                      Target: <strong className="text-emerald-300">{selectedExercise.targetFocus}</strong>
+                    </span>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${accentTextBright}`}>
-                  {t('howToPerform')}
-                </span>
-                <h3 className="text-base sm:text-lg font-black text-white">
-                  {language === 'en' && selectedExercise.titleEn ? selectedExercise.titleEn : selectedExercise.title}
-                </h3>
+
+              {/* 🎼 SCEGLI IL PATTERN MELODICO (Menu a tendina prima delle istruzioni) 🎼 */}
+              <div className={`bg-slate-950/90 border ${accentBorderSubtle} p-3 sm:p-3.5 rounded-xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4`}>
+                <div className="flex items-center space-x-2 shrink-0">
+                  <div className={`p-1.5 sm:p-2 rounded-xl ${accentBadgeBg}`}>
+                    <Music className={`w-4 h-4 sm:w-5 sm:h-5 ${accentText}`} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-white whitespace-nowrap">
+                      {language === 'en' ? 'Choose Melodic Pattern' : 'Scegli il pattern melodico'}
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      {language === 'en'
+                        ? 'Instructions and audio demo will update for this pattern'
+                        : 'Istruzioni ed esempio audio si aggiornano per questo pattern'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                  <select
+                    value={selectedScalePattern}
+                    onChange={(e) => {
+                      const chosenPat = e.target.value as ScalePatternId;
+                      if (!isSubscribed && chosenPat !== 'five_notes') {
+                        openSubscriptionModal(
+                          language === 'en'
+                            ? 'Melodic patterns beyond 12345 are available with an Echora subscription. Choose your subscription to unlock all patterns!'
+                            : 'Tutti i pattern melodici oltre a 12345 richiedono un abbonamento Echora. Scegli il tuo abbonamento per sbloccarli!'
+                        );
+                        return;
+                      }
+                      setSelectedScalePattern(chosenPat);
+                    }}
+                    className={`w-full bg-slate-900 border ${accentBorderSubtle} hover:${accentBorder} font-extrabold text-xs sm:text-sm rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 focus:outline-none focus:ring-2 ${isWarmup ? 'focus:ring-[#fa83b5]' : 'focus:ring-sky-400'} cursor-pointer appearance-none pr-9 text-white shadow-md transition-all`}
+                  >
+                    {availableScalePatterns.map((pat) => {
+                      const isLocked = !isSubscribed && pat.id !== 'five_notes';
+                      return (
+                        <option 
+                          key={pat.id} 
+                          value={pat.id} 
+                          className={`bg-slate-900 py-1.5 ${isLocked ? 'text-slate-500 font-normal' : 'text-white font-bold'}`}
+                        >
+                          {isLocked ? `🔒 ${getScalePatternLabel(pat, language, selectedExercise.id)} (Abbonamento)` : getScalePatternLabel(pat, language, selectedExercise.id)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 ${accentText}`}>
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {/* Step-by-step instructions */}
+                <div className={`bg-slate-950/80 p-3.5 rounded-xl border ${accentBorderSubtle} space-y-2`}>
+                  <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${accentText}`}>
+                    <CheckCircle2 className={`w-4 h-4 ${accentTextBright}`} />
+                    {language === 'en' ? 'Execution Instructions' : 'Istruzioni Esecuzione'}
+                  </span>
+                  {Array.isArray(displayInstructions) ? (
+                    <ol className="text-xs text-slate-200 space-y-1.5 list-decimal pl-4 font-medium">
+                      {displayInstructions.map((step, idx) => (
+                        <li key={idx} className="leading-normal">{step}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="text-xs text-slate-200 leading-normal">{displayInstructions}</p>
+                  )}
+                </div>
+
+                {/* Vocal Tip / Advice */}
+                <div className={`bg-slate-950/80 p-3.5 rounded-xl border ${accentBorderSubtle} space-y-2`}>
+                  <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${accentText}`}>
+                    <Lightbulb className={`w-4 h-4 ${accentTextBright}`} />
+                    {language === 'en' ? 'Troubleshooting & Tips' : 'Risoluzione dei problemi e consigli'}
+                  </span>
+                  <p className="text-xs text-slate-200 leading-normal font-medium whitespace-pre-line">
+                    {displayVocalTip}
+                  </p>
+                </div>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60">
-                {language === 'en' ? 'Sound:' : 'Suono:'} <strong className={accentText}>{vowel}</strong>
-              </span>
-              {selectedExercise.targetFocus && (
-                <span className="text-[11px] font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60 hidden sm:inline-block">
-                  Target: <strong className="text-emerald-300">{selectedExercise.targetFocus}</strong>
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            {/* Step-by-step instructions */}
-            <div className={`bg-slate-950/80 p-3.5 rounded-xl border ${accentBorderSubtle} space-y-2`}>
-              <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${accentText}`}>
-                <CheckCircle2 className={`w-4 h-4 ${accentTextBright}`} />
-                {language === 'en' ? 'Execution Instructions' : 'Istruzioni Esecuzione'}
-              </span>
-              {Array.isArray(selectedExercise.instructions) ? (
-                <ol className="text-xs text-slate-200 space-y-1.5 list-decimal pl-4 font-medium">
-                  {((language === 'en' && selectedExercise.instructionsEn) ? selectedExercise.instructionsEn : selectedExercise.instructions).map((step, idx) => (
-                    <li key={idx} className="leading-normal">{step}</li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-xs text-slate-200 leading-normal">{(language === 'en' && selectedExercise.instructionsEn) ? selectedExercise.instructionsEn : selectedExercise.instructions}</p>
-              )}
-            </div>
-
-            {/* Vocal Tip / Advice */}
-            <div className={`bg-slate-950/80 p-3.5 rounded-xl border ${accentBorderSubtle} space-y-2`}>
-              <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${accentText}`}>
-                <Lightbulb className={`w-4 h-4 ${accentTextBright}`} />
-                {language === 'en' ? 'Troubleshooting & Tips' : 'Risoluzione dei problemi e consigli'}
-              </span>
-              <p className="text-xs text-slate-200 leading-normal font-medium whitespace-pre-line">
-                {(language === 'en' && selectedExercise.vocalTipEn) ? selectedExercise.vocalTipEn : selectedExercise.vocalTip}
-              </p>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
 
       {/* Banner Routine Guidata Attiva (se presente nella coda) */}
@@ -1976,62 +2201,29 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
           <div className={`bg-slate-900 border ${accentBorder} rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl relative overflow-hidden`}>
             <div className={`absolute -top-12 -right-12 w-48 h-48 ${accentGlow} rounded-full blur-3xl pointer-events-none`}></div>
 
-            {/* 🌟 RIQUADRO: PRIMA DI INIZIARE 🌟 */}
-            <div className={`mb-4 sm:mb-5 bg-gradient-to-r ${accentCardGradient} border ${accentBorder} p-3 sm:p-5 rounded-2xl shadow-xl space-y-3 sm:space-y-4`}>
-              <div className={`flex items-center space-x-2 pb-2 sm:pb-2.5 border-b ${accentBorderSubtle}`}>
+            {/* 🌟 RIQUADRO: NOTA DI PARTENZA, TRASPOSIZIONE E ACCOMPAGNAMENTO (2 RIGHE) + VOLUMI E VELOCITÀ 🌟 */}
+            <div className={`mb-4 sm:mb-5 bg-gradient-to-r ${accentCardGradient} border ${accentBorder} p-3 sm:p-4 rounded-2xl shadow-xl space-y-3`}>
+              <div className={`flex items-center space-x-2 pb-2 border-b ${accentBorderSubtle}`}>
                 <div className={`p-1.5 rounded-xl ${accentBadgeBg}`}>
-                  <Sparkles className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${accentText}`} />
+                  <Sliders className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${accentText}`} />
                 </div>
                 <h3 className={`text-xs sm:text-base font-black ${accentText} uppercase tracking-widest`}>
-                  {language === 'en' ? 'Before You Start' : 'Prima di iniziare'}
+                  {language === 'en' ? 'Controls' : 'Controlli'}
                 </h3>
               </div>
 
-              {/* 1. SCEGLI IL PATTERN MELODICO */}
-              <div className={`bg-slate-900/90 border ${accentBorderSubtle} p-2.5 sm:p-4 rounded-xl shadow-md`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <div className={`p-1.5 sm:p-2 rounded-xl ${accentBadgeBg}`}>
-                      <Music className={`w-4 h-4 sm:w-5 sm:h-5 ${accentText}`} />
-                    </div>
-                    <h4 className="text-xs sm:text-base font-black text-white whitespace-nowrap">
-                      {language === 'en' ? 'Choose Melodic Pattern' : 'Scegli il pattern melodico'}
-                    </h4>
-                  </div>
-
-                  <div className="relative w-full sm:w-80">
-                    <select
-                      value={selectedScalePattern}
-                      onChange={(e) => setSelectedScalePattern(e.target.value as ScalePatternId)}
-                      className={`w-full bg-slate-950 border ${accentBorderSubtle} font-extrabold text-xs sm:text-sm rounded-xl px-2.5 py-2 sm:px-3.5 sm:py-2.5 focus:outline-none focus:ring-2 focus:ring-[#fa83b5] cursor-pointer appearance-none pr-8 text-white shadow-inner transition-all`}
-                    >
-                      {availableScalePatterns.map((pat) => (
-                        <option key={pat.id} value={pat.id} className="bg-slate-900 text-white font-bold py-1.5">
-                          {getScalePatternLabel(pat, language)}
-                        </option>
-                      ))}
-                    </select>
-                    <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 ${accentText}`}>
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" viewBox="0 0 20 20">
-                        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. TONALITÀ, TRASPOSIZIONE E ACCOMPAGNAMENTO */}
-              <div className={`bg-slate-900/90 border ${accentBorderSubtle} p-2.5 sm:p-3 rounded-xl shadow-md w-full overflow-hidden`}>
-                <div className="flex flex-col sm:flex-row sm:flex-wrap lg:flex-nowrap items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 text-xs">
-                  
-                  {/* 1. TONALITÀ DI PARTENZA */}
-                  <div className="flex items-center justify-between sm:justify-start space-x-2 bg-slate-950/50 sm:bg-transparent p-1.5 sm:p-0 rounded-lg">
+              {/* DUE RIGHE */}
+              <div className={`bg-slate-900/90 border ${accentBorderSubtle} p-3 rounded-xl shadow-md w-full space-y-3`}>
+                {/* RIGA 1: NOTA DI PARTENZA (sinistra) <----------> AUTO TRANSPOSE (destra) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  {/* SINISTRA: NOTA DI PARTENZA */}
+                  <div className="flex items-center justify-between sm:justify-start space-x-2.5">
                     <div className="flex items-center space-x-1.5">
                       <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
                         <Music className="w-3.5 h-3.5" />
                       </div>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider whitespace-nowrap">
-                        {language === 'en' ? 'Key:' : 'Tonalità:'}
+                      <span className="text-[11px] font-black text-slate-200 uppercase tracking-wider whitespace-nowrap">
+                        {language === 'en' ? 'NOTA DI PARTENZA:' : 'NOTA DI PARTENZA:'}
                       </span>
                     </div>
                     <div className="flex items-center space-x-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800">
@@ -2043,7 +2235,7 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                       >
                         -1
                       </button>
-                      <span className={`font-black ${accentText} text-xs px-1.5 text-center min-w-[38px] whitespace-nowrap`}>
+                      <span className={`font-black ${accentText} text-xs px-2 text-center min-w-[42px] whitespace-nowrap`}>
                         {notation === 'latin' ? rootNoteInfo.nameLatin : rootNoteInfo.nameScientific}
                       </span>
                       <button
@@ -2057,21 +2249,15 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                     </div>
                   </div>
 
-                  <div className="hidden lg:block w-px h-5 bg-slate-800" />
-
-                  {/* 2. TRASPOSIZIONE AUTO */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 bg-slate-950/50 sm:bg-transparent p-1.5 sm:p-0 rounded-lg w-full">
-                    <div className="flex items-center justify-between sm:justify-start space-x-2 w-full sm:w-auto">
-                      <div className="flex items-center space-x-1.5">
-                        <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
-                          <Repeat className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider whitespace-nowrap">
-                          Auto Transpose:
-                        </span>
+                  {/* DESTRA (LATO OPPOSTO): AUTO TRANSPOSE */}
+                  <div className="flex items-center justify-between sm:justify-end gap-2.5">
+                    <div className="flex items-center space-x-1.5">
+                      <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
+                        <Repeat className="w-3.5 h-3.5" />
                       </div>
-
-                      {/* Switch ON/OFF affianco al titolo su mobile */}
+                      <span className="text-[11px] font-black text-slate-200 uppercase tracking-wider whitespace-nowrap">
+                        Auto Transpose:
+                      </span>
                       <button
                         type="button"
                         onClick={() => setAutoTranspose(!autoTranspose)}
@@ -2090,84 +2276,229 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                       </button>
                     </div>
 
-                    {/* Passo 1 sem / 1 tono al centro sotto su mobile */}
-                    <div className="flex justify-center sm:justify-start w-full sm:w-auto mt-0.5 sm:mt-0">
-                      <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setTransposeStep(1)}
-                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
-                            transposeStep === 1
-                              ? isWarmup
-                                ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
-                                : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          {language === 'en' ? '1 Semitone' : '1 Semitono'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTransposeStep(2)}
-                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
-                            transposeStep === 2
-                              ? isWarmup
-                                ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
-                                : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          {language === 'en' ? '1 Tone' : '1 Tono'}
-                        </button>
-                      </div>
+                    <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setTransposeStep(1)}
+                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
+                          transposeStep === 1
+                            ? isWarmup
+                              ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
+                              : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {language === 'en' ? '1 Semitone' : '1 Semitono'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTransposeStep(2)}
+                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
+                          transposeStep === 2
+                            ? isWarmup
+                              ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
+                              : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {language === 'en' ? '1 Tone' : '1 Tono'}
+                      </button>
                     </div>
                   </div>
+                </div>
 
-                  <div className="hidden lg:block w-px h-5 bg-slate-800" />
+                <div className="w-full h-px bg-slate-800/80" />
 
-                  {/* 3. ACCOMPAGNAMENTO PIANOFORTE */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 bg-slate-950/50 sm:bg-transparent p-1.5 sm:p-0 rounded-lg w-full">
-                    <div className="flex items-center justify-start space-x-1.5 w-full sm:w-auto">
-                      <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
-                        <Sliders className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider whitespace-nowrap">
-                        {language === 'en' ? 'Accompaniment:' : 'Accompagnamento:'}
-                      </span>
+                {/* RIGA 2: ACCOMPAGNAMENTO */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center space-x-1.5">
+                    <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
+                      <Sliders className="w-3.5 h-3.5" />
                     </div>
+                    <span className="text-[11px] font-black text-slate-200 uppercase tracking-wider whitespace-nowrap">
+                      {language === 'en' ? 'ACCOMPANIMENT:' : 'ACCOMPAGNAMENTO:'}
+                    </span>
+                  </div>
 
-                    {/* Modalità al centro sotto su mobile */}
-                    <div className="flex justify-center sm:justify-start w-full sm:w-auto mt-0.5 sm:mt-0">
-                      <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setAccompanimentMode('all_notes')}
-                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
-                            accompanimentMode === 'all_notes'
-                              ? isWarmup
-                                ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
-                                : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          {language === 'en' ? 'Chord + Notes' : 'Accordo + Note'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAccompanimentMode('chord_only')}
-                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
-                            accompanimentMode === 'chord_only'
-                              ? isWarmup
-                                ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
-                                : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
-                              : 'text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          {language === 'en' ? 'Chords Only' : 'Solo Accordi'}
-                        </button>
-                      </div>
+                  <div className="flex justify-end">
+                    <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setAccompanimentMode('all_notes')}
+                        className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
+                          accompanimentMode === 'all_notes'
+                            ? isWarmup
+                              ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
+                              : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {language === 'en' ? 'Chord + Notes' : 'Accordo + Note'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAccompanimentMode('chord_only')}
+                        className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all ${
+                          accompanimentMode === 'chord_only'
+                            ? isWarmup
+                              ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 text-slate-950 shadow-sm border border-[#fa83b5]'
+                              : 'bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white shadow-sm border border-sky-400/50'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {language === 'en' ? 'Chords Only' : 'Solo Accordi'}
+                      </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* SOTTO: VOLUMI E VELOCITÀ (DIRETTAMENTE VISIBILE E ACCESSIBILE) */}
+              <div className={`bg-slate-950/90 border ${accentBorderSubtle} p-2.5 sm:p-3 rounded-xl shadow-md text-[11px]`}>
+                <div className="flex items-center space-x-1.5 mb-2 pb-1.5 border-b border-slate-800/80">
+                  <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
+                    <Sliders className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[10px] sm:text-[11px] font-black text-slate-200 uppercase tracking-wider">
+                    {language === 'en' ? 'VOLUMES & SPEED' : 'VOLUMI E VELOCITÀ'}
+                  </span>
+                </div>
+
+                {/* GRID: RIGA 1 (METRONOMO ON/OFF | VOL METRO | VELOCITÀ) + RIGA 2 (VOL PIANO PARALLELO SOTTO VOL METRO) */}
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] gap-x-4 lg:gap-x-6 gap-y-2.5 items-center">
+                  
+                  {/* RIGA 1 - COLONNA 1: METRONOMO ON/OFF */}
+                  <div className="flex items-center space-x-2 shrink-0 sm:min-w-[145px]">
+                    <span className="font-extrabold text-slate-200 text-[10px] sm:text-[11px] whitespace-nowrap flex items-center gap-1.5">
+                      <Gauge className={`w-3.5 h-3.5 ${accentTextBright}`} />
+                      <span>{language === 'en' ? 'Metronome:' : 'Metronomo:'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIncludeMetronome(!includeMetronome)}
+                      className={`flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all border ${
+                        includeMetronome
+                          ? isWarmup
+                            ? 'bg-rose-950 text-rose-200 border-[#fa83b5]/80 shadow-sm'
+                            : 'bg-sky-950 text-sky-200 border-sky-400/80 shadow-sm shadow-sky-500/20'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                      title={language === 'en' ? 'Toggle metronome' : 'Attiva o disattiva il metronomo'}
+                    >
+                      <div className={`w-4 h-2.5 sm:w-5 sm:h-3 flex items-center rounded-full p-0.5 transition-colors ${includeMetronome ? (isWarmup ? 'bg-[#fa83b5]' : 'bg-sky-500') : 'bg-slate-700'}`}>
+                        <div className={`bg-white w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-md transform transition-transform ${includeMetronome ? 'translate-x-1.5 sm:translate-x-2' : 'translate-x-0'}`} />
+                      </div>
+                      <span className="font-black text-[9px] sm:text-[10px] tracking-wider uppercase">{includeMetronome ? 'ON' : 'OFF'}</span>
+                    </button>
+                  </div>
+
+                  {/* RIGA 1 - COLONNA 2: VOLUME METRONOMO (affianco a metronomo ON/OFF) */}
+                  <div className={`flex items-center space-x-1.5 justify-start sm:justify-center transition-opacity ${includeMetronome ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setMetronomeVolume(metronomeVolume === 0 ? 0.5 : 0)}
+                      className="text-slate-400 hover:text-white transition-colors p-0.5"
+                      title={metronomeVolume === 0 ? (language === 'en' ? 'Unmute metronome' : 'Riattiva metronomo') : (language === 'en' ? 'Mute metronome' : 'Muto metronomo')}
+                    >
+                      {metronomeVolume === 0 ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className={`w-3.5 h-3.5 ${accentTextBright}`} />}
+                    </button>
+                    <span className="font-bold text-slate-300 text-[10px] whitespace-nowrap">{language === 'en' ? 'Volume:' : 'Volume:'}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.02"
+                      value={metronomeVolume}
+                      onChange={(e) => setMetronomeVolume(Number(e.target.value))}
+                      className={`w-20 sm:w-24 ${isWarmup ? 'accent-[#fa83b5]' : 'accent-sky-400'} cursor-pointer h-1 bg-slate-800 rounded-lg`}
+                    />
+                    <span className={`text-[10px] font-black ${accentText} w-7 text-right font-mono`}>
+                      {Math.round(metronomeVolume * 100)}%
+                    </span>
+                  </div>
+
+                  {/* RIGA 1 - COLONNA 3: VELOCITÀ METRONOMO (affianco al volume del metronomo) */}
+                  <div className={`flex items-center space-x-1 sm:space-x-1.5 justify-start sm:justify-end transition-opacity ${includeMetronome ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                    <span className="font-bold text-slate-300 text-[10px] whitespace-nowrap">{language === 'en' ? 'Speed:' : 'Velocità:'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBpm(Math.max(40, bpm - 5))}
+                      className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded text-[10px] font-black border border-slate-800"
+                    >
+                      -5
+                    </button>
+                    <input
+                      type="range"
+                      min="40"
+                      max="180"
+                      value={bpm}
+                      onChange={(e) => setBpm(Number(e.target.value))}
+                      className={`w-16 sm:w-24 ${isWarmup ? 'accent-[#fa83b5]' : 'accent-sky-400'} cursor-pointer h-1 bg-slate-800 rounded-lg`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBpm(Math.min(200, bpm + 5))}
+                      className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded text-[10px] font-black border border-slate-800"
+                    >
+                      +5
+                    </button>
+                    <span className={`text-[10px] font-black ${accentText} ${isWarmup ? 'bg-rose-950/80 border-[#fa83b5]/50' : 'bg-sky-950/80 border-sky-800/50'} px-1.5 py-0.5 rounded border font-mono whitespace-nowrap min-w-[55px] text-center`}>
+                      {bpm} BPM
+                    </span>
+                  </div>
+
+                  {/* RIGA 2 - COLONNA 1: PIANOFORTE ON/OFF (con simbolino come metronomo) */}
+                  <div className="flex items-center space-x-2 shrink-0 sm:min-w-[145px]">
+                    <span className="font-extrabold text-slate-200 text-[10px] sm:text-[11px] whitespace-nowrap flex items-center gap-1.5">
+                      <Music className={`w-3.5 h-3.5 ${accentTextBright}`} />
+                      <span>{language === 'en' ? 'Piano:' : 'Pianoforte:'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIncludePiano(!includePiano)}
+                      className={`flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all border ${
+                        includePiano
+                          ? isWarmup
+                            ? 'bg-rose-950 text-rose-200 border-[#fa83b5]/80 shadow-sm'
+                            : 'bg-sky-950 text-sky-200 border-sky-400/80 shadow-sm shadow-sky-500/20'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                      title={language === 'en' ? 'Toggle piano' : 'Attiva o disattiva il pianoforte'}
+                    >
+                      <div className={`w-4 h-2.5 sm:w-5 sm:h-3 flex items-center rounded-full p-0.5 transition-colors ${includePiano ? (isWarmup ? 'bg-[#fa83b5]' : 'bg-sky-500') : 'bg-slate-700'}`}>
+                        <div className={`bg-white w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-md transform transition-transform ${includePiano ? 'translate-x-1.5 sm:translate-x-2' : 'translate-x-0'}`} />
+                      </div>
+                      <span className="font-black text-[9px] sm:text-[10px] tracking-wider uppercase">{includePiano ? 'ON' : 'OFF'}</span>
+                    </button>
+                  </div>
+
+                  {/* RIGA 2 - COLONNA 2: VOLUME PIANOFORTE (SOTTO PARALLELAMENTE AL VOLUME DEL METRONOMO) */}
+                  <div className={`flex items-center space-x-1.5 justify-start sm:justify-center transition-opacity ${includePiano ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setPianoVolume(pianoVolume === 0 ? 0.5 : 0)}
+                      className="text-slate-400 hover:text-white transition-colors p-0.5"
+                      title={pianoVolume === 0 ? (language === 'en' ? 'Unmute piano' : 'Riattiva pianoforte') : (language === 'en' ? 'Mute piano' : 'Muto pianoforte')}
+                    >
+                      {pianoVolume === 0 ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className={`w-3.5 h-3.5 ${accentTextBright}`} />}
+                    </button>
+                    <span className="font-bold text-slate-300 text-[10px] whitespace-nowrap">{language === 'en' ? 'Volume:' : 'Volume:'}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.02"
+                      value={pianoVolume}
+                      onChange={(e) => setPianoVolume(Number(e.target.value))}
+                      className={`w-20 sm:w-24 ${isWarmup ? 'accent-[#fa83b5]' : 'accent-sky-400'} cursor-pointer h-1 bg-slate-800 rounded-lg`}
+                    />
+                    <span className={`text-[10px] font-black ${accentText} w-7 text-right font-mono`}>
+                      {Math.round(pianoVolume * 100)}%
+                    </span>
+                  </div>
+
+                  {/* RIGA 2 - COLONNA 3: vuoto per allineamento a griglia */}
+                  <div className="hidden sm:block" />
 
                 </div>
               </div>
@@ -2198,6 +2529,31 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
 
               {/* CONTROLS AREA: STOP, PLAY, PAUSA ICON BUTTONS & INIZIA DISCESA */}
               <div className="flex flex-col items-center justify-center space-y-3 pt-1">
+                {/* Premium Lock Banner if exercise/pattern is locked for unsubscribed user */}
+                {!isCurrentExercisePlayable && (
+                  <button
+                    type="button"
+                    onClick={() => openSubscriptionModal(
+                      language === 'en'
+                        ? 'To play this exercise and unlock the full vocal catalog, choose your Echora subscription. Only Lip Thrill 12345 is free.'
+                        : 'Per avviare questo esercizio e sbloccare tutti i contenuti di Echora, scegli il tuo abbonamento. Il Lip Thrill 12345 rimane completamente gratuito.'
+                    )}
+                    className="w-full max-w-md mx-auto p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/50 hover:border-amber-400 text-amber-200 text-xs flex items-center justify-between gap-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="font-bold">
+                        {language === 'en'
+                          ? 'Premium Exercise — Choose your subscription to play'
+                          : 'Esercizio Premium — Scegli il tuo abbonamento Echora per avviarlo'}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-extrabold text-[11px] shrink-0 border border-amber-400/40">
+                      {language === 'en' ? 'Choose Plan' : 'Scegli Abbonamento'}
+                    </span>
+                  </button>
+                )}
+
                 {/* Stop, Play & Pause Icon-only Buttons + Routine Navigation */}
                 <div className="flex items-center justify-center gap-3 sm:gap-4">
                   {/* Tasto Previous Step nella routine (se disponibile) */}
@@ -2234,9 +2590,28 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                   {/* Tasto PLAY */}
                   <button
                     type="button"
-                    onClick={() => setIsPlaying(true)}
+                    onClick={() => {
+                      try {
+                        const ctx = getAudioContext();
+                        if (ctx && ctx.state === 'suspended') {
+                          ctx.resume().catch(() => {});
+                        }
+                      } catch {}
+
+                      if (!isCurrentExercisePlayable) {
+                        openSubscriptionModal(
+                          language === 'en'
+                            ? 'To play this exercise and unlock the full vocal catalog, choose your Echora subscription.'
+                            : 'Per avviare questo esercizio e sbloccare tutti i contenuti di Echora, scegli il tuo abbonamento.'
+                        );
+                        return;
+                      }
+                      setIsPlaying(true);
+                    }}
                     className={`p-3.5 rounded-full transition-all border active:scale-95 shadow-lg ${
-                      isPlaying
+                      !isCurrentExercisePlayable
+                        ? 'bg-slate-800 text-amber-400 border-amber-500/40 hover:bg-slate-700 cursor-pointer'
+                        : isPlaying
                         ? isWarmup
                           ? 'bg-[#fa83b5] text-slate-950 border-rose-200 shadow-[#fa83b5]/50 ring-2 ring-[#fa83b5]/50'
                           : 'bg-blue-600 text-white border-blue-300 shadow-blue-600/50 ring-2 ring-blue-400/50'
@@ -2244,9 +2619,17 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                           ? 'bg-gradient-to-r from-[#fa83b5] to-pink-400 hover:from-[#fa83b5]/90 hover:to-pink-300 text-slate-950 border-rose-200 shadow-[#fa83b5]/40 hover:scale-105'
                           : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-400/80 shadow-blue-900/40 hover:scale-105'
                     }`}
-                    title={language === 'en' ? 'Start Exercise' : 'Avvia Esercizio'}
+                    title={
+                      !isCurrentExercisePlayable
+                        ? (language === 'en' ? 'Locked — Choose Echora subscription' : 'Bloccato — Scegli abbonamento Echora')
+                        : (language === 'en' ? 'Start Exercise (Spacebar)' : 'Avvia Esercizio (Barra Spaziatrice)')
+                    }
                   >
-                    <Play className="w-6 h-6 fill-current ml-0.5 text-slate-950" />
+                    {!isCurrentExercisePlayable ? (
+                      <Lock className="w-6 h-6 text-amber-400" />
+                    ) : (
+                      <Play className="w-6 h-6 fill-current ml-0.5 text-slate-950" />
+                    )}
                   </button>
 
                   {/* Tasto PAUSA */}
@@ -2262,7 +2645,7 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                           ? 'bg-gradient-to-r from-pink-400 via-[#fa83b5] to-pink-400 text-slate-950 border-rose-200 shadow-[#fa83b5]/40 hover:scale-105'
                           : 'bg-gradient-to-r from-sky-400 via-cyan-400 to-sky-400 hover:from-sky-300 hover:to-cyan-300 text-slate-950 border-sky-200 shadow-sky-400/40 hover:scale-105'
                     }`}
-                    title={language === 'en' ? 'Pause' : 'Metti in Pausa'}
+                    title={language === 'en' ? 'Pause (Spacebar)' : 'Metti in Pausa (Barra Spaziatrice)'}
                   >
                     <Pause className="w-6 h-6 fill-current" />
                   </button>
@@ -2330,151 +2713,6 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
               </div>
             </div>
 
-            {/* 🎛️ MENU A SCOMPARSA: VOLUMI & VELOCITÀ 🎛️ */}
-            <div className="my-3">
-              <button
-                type="button"
-                onClick={() => setShowAudioControls(!showAudioControls)}
-                className={`w-full flex items-center justify-between px-3.5 py-2 bg-slate-950/90 border ${accentBorderSubtle} hover:${accentBorder} rounded-xl text-xs font-extrabold text-slate-200 transition-all shadow-lg hover:bg-slate-900/90 active:scale-[0.99]`}
-              >
-                <div className="flex items-center space-x-2">
-                  <div className={`p-1 rounded-lg ${accentBadgeBg}`}>
-                    <Sliders className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="tracking-wide text-xs">{language === 'en' ? 'Volume & Speed' : 'Volumi e Velocità'}</span>
-                  <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">{language === 'en' ? '(Metronome, BPM, Piano)' : '(Metronomo, BPM, Piano)'}</span>
-                </div>
-                <div className={`flex items-center space-x-1.5 ${accentText}`}>
-                  <span className="text-[10px] font-bold">{showAudioControls ? (language === 'en' ? 'Hide' : 'Nascondi') : (language === 'en' ? 'Show' : 'Mostra')}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${showAudioControls ? `rotate-180 ${accentTextBright}` : ''}`} />
-                </div>
-              </button>
-
-              {showAudioControls && (
-                <div className={`mt-2 p-2.5 bg-slate-950/95 border ${accentBorderSubtle} rounded-xl shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] animate-fade-in`}>
-                  {/* TOP ROW ON MOBILE (Metronomo & Velocità BPM) */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 w-full sm:w-auto">
-                    {/* 1. METRONOMO WITH SWITCH ON/OFF */}
-                    <div className="flex items-center space-x-1.5 shrink-0">
-                      <span className="font-extrabold text-slate-200 text-[11px] whitespace-nowrap flex items-center gap-1">
-                        <Gauge className={`w-3.5 h-3.5 ${accentTextBright}`} />
-                        <span className="hidden sm:inline">{language === 'en' ? 'Metronome' : 'Metronomo'}</span>
-                        <span className="sm:hidden">{language === 'en' ? 'Metro' : 'Metro'}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIncludeMetronome(!includeMetronome)}
-                        className={`flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all border ${
-                          includeMetronome
-                            ? isWarmup
-                              ? 'bg-rose-950 text-rose-200 border-[#fa83b5]/80 shadow-sm'
-                              : 'bg-sky-950 text-sky-200 border-sky-400/80 shadow-sm shadow-sky-500/20'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                        }`}
-                        title={language === 'en' ? 'Toggle metronome' : 'Attiva o disattiva il metronomo'}
-                      >
-                        <div className={`w-4 h-2.5 sm:w-5 sm:h-3 flex items-center rounded-full p-0.5 transition-colors ${includeMetronome ? (isWarmup ? 'bg-[#fa83b5]' : 'bg-sky-500') : 'bg-slate-700'}`}>
-                          <div className={`bg-white w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-md transform transition-transform ${includeMetronome ? 'translate-x-1.5 sm:translate-x-2' : 'translate-x-0'}`} />
-                        </div>
-                        <span className="font-black text-[9px] sm:text-[10px] tracking-wider uppercase">{includeMetronome ? 'ON' : 'OFF'}</span>
-                      </button>
-                    </div>
-
-                    {/* DIVIDER FOR DESKTOP */}
-                    <div className="hidden sm:block w-px h-5 bg-slate-800 shrink-0" />
-
-                    {/* 2. VELOCITÀ (BPM) */}
-                    <div className={`flex items-center space-x-1 sm:space-x-1.5 shrink-0 transition-opacity ${includeMetronome ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                      <span className="font-bold text-slate-300 text-[10px] hidden xl:inline">{language === 'en' ? 'Speed:' : 'Velocità:'}</span>
-                      <button
-                        type="button"
-                        onClick={() => setBpm(Math.max(40, bpm - 5))}
-                        className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded text-[10px] font-black border border-slate-800"
-                      >
-                        -5
-                      </button>
-                      <input
-                        type="range"
-                        min="40"
-                        max="180"
-                        value={bpm}
-                        onChange={(e) => setBpm(Number(e.target.value))}
-                        className={`w-12 sm:w-20 ${isWarmup ? 'accent-[#fa83b5]' : 'accent-sky-400'} cursor-pointer h-1 bg-slate-800 rounded-lg`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setBpm(Math.min(200, bpm + 5))}
-                        className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded text-[10px] font-black border border-slate-800"
-                      >
-                        +5
-                      </button>
-                      <span className={`text-[10px] font-black ${accentText} ${isWarmup ? 'bg-rose-950/80 border-[#fa83b5]/50' : 'bg-sky-950/80 border-sky-800/50'} px-1 py-0.5 rounded border font-mono whitespace-nowrap`}>
-                        {bpm} BPM
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* DIVIDER FOR DESKTOP */}
-                  <div className="hidden sm:block w-px h-5 bg-slate-800 shrink-0" />
-
-                  {/* BOTTOM ROW ON MOBILE (Vol. Metro & Vol. Piano) */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t border-slate-800/80 sm:border-0">
-                    {/* 3. VOLUME METRONOMO */}
-                    <div className={`flex items-center space-x-1 sm:space-x-1.5 shrink-0 transition-opacity ${includeMetronome ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                      <button
-                        type="button"
-                        onClick={() => setMetronomeVolume(metronomeVolume === 0 ? 0.85 : 0)}
-                        className="text-slate-400 hover:text-white transition-colors p-0.5"
-                        title={metronomeVolume === 0 ? (language === 'en' ? 'Unmute metronome' : 'Riattiva metronomo') : (language === 'en' ? 'Mute metronome' : 'Muto metronomo')}
-                      >
-                        {metronomeVolume === 0 ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-sky-400" />}
-                      </button>
-                      <span className="font-bold text-slate-300 text-[10px]">{language === 'en' ? 'Metro:' : 'Metro:'}</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.02"
-                        value={metronomeVolume}
-                        onChange={(e) => setMetronomeVolume(Number(e.target.value))}
-                        className="w-12 sm:w-20 accent-sky-400 cursor-pointer h-1 bg-slate-800 rounded-lg"
-                      />
-                      <span className="text-[10px] font-black text-sky-300 w-6 text-right font-mono">
-                        {Math.round(metronomeVolume * 100)}%
-                      </span>
-                    </div>
-
-                    {/* DIVIDER FOR DESKTOP */}
-                    <div className="hidden sm:block w-px h-5 bg-slate-800 shrink-0" />
-
-                    {/* 4. VOLUME PIANOFORTE */}
-                    <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setPianoVolume(pianoVolume === 0 ? 0.9 : 0)}
-                        className="text-slate-400 hover:text-white transition-colors p-0.5"
-                        title={pianoVolume === 0 ? (language === 'en' ? 'Unmute piano' : 'Riattiva pianoforte') : (language === 'en' ? 'Mute piano' : 'Muto pianoforte')}
-                      >
-                        {pianoVolume === 0 ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-sky-400" />}
-                      </button>
-                      <span className="font-bold text-slate-300 text-[10px]">Piano:</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.02"
-                        value={pianoVolume}
-                        onChange={(e) => setPianoVolume(Number(e.target.value))}
-                        className="w-12 sm:w-20 accent-sky-400 cursor-pointer h-1 bg-slate-800 rounded-lg"
-                      />
-                      <span className="text-[10px] font-black text-sky-300 w-6 text-right font-mono">
-                        {Math.round(pianoVolume * 100)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Interactive Reference Keyboard */}

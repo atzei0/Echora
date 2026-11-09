@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import { execSync } from "child_process";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import Stripe from "stripe";
@@ -58,10 +60,34 @@ app.use(
 );
 
 /* =========================================================
-   STANDARD JSON
+   STANDARD JSON & STATIC AUDIO
    ========================================================= */
 
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ limit: "25mb", extended: true }));
+app.use(
+  "/audio",
+  express.static(path.join(process.cwd(), "public", "audio"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".mp3")) {
+        res.setHeader("Content-Type", "audio/mpeg");
+      } else if (filePath.endsWith(".webm")) {
+        res.setHeader("Content-Type", "audio/webm");
+      } else if (filePath.endsWith(".ogg")) {
+        res.setHeader("Content-Type", "audio/ogg");
+      } else if (filePath.endsWith(".wav")) {
+        res.setHeader("Content-Type", "audio/wav");
+      } else if (filePath.endsWith(".m4a") || filePath.endsWith(".mp4")) {
+        res.setHeader("Content-Type", "audio/mp4");
+      }
+      res.setHeader("Accept-Ranges", "bytes");
+    },
+  }),
+  // Prevent missing audio files from falling through to Vite SPA index.html
+  (_req, res) => {
+    res.status(404).type("application/json").json({ error: "Audio demo non trovato." });
+  }
+);
 
 /* =========================================================
    STRIPE CLIENT
@@ -2104,6 +2130,281 @@ app.get(
     }
   }
 );
+
+/* =========================================================
+   DEMO AUDIO FOR EXERCISES
+   ========================================================= */
+
+const DEMO_AUDIO_DIR = path.join(process.cwd(), "public", "audio", "demos");
+const DEMO_MANIFEST_PATH = path.join(DEMO_AUDIO_DIR, "manifest.json");
+
+function ensureDemoDirExists() {
+  if (!fs.existsSync(DEMO_AUDIO_DIR)) {
+    fs.mkdirSync(DEMO_AUDIO_DIR, { recursive: true });
+  }
+}
+
+function readDemoManifest(): Record<string, { url: string; filename: string; updatedAt: number }> {
+  ensureDemoDirExists();
+  let manifest: Record<string, { url: string; filename: string; updatedAt: number }> = {};
+  let hadInvalidEntries = false;
+
+  if (fs.existsSync(DEMO_MANIFEST_PATH)) {
+    try {
+      const raw = fs.readFileSync(DEMO_MANIFEST_PATH, "utf-8");
+      const parsed = JSON.parse(raw);
+      for (const [key, item] of Object.entries(parsed)) {
+        if (item && typeof item === "object" && (item as any).filename) {
+          const filePath = path.join(DEMO_AUDIO_DIR, (item as any).filename);
+          if (fs.existsSync(filePath) && fs.statSync(filePath).size > 100) {
+            manifest[key] = item as any;
+          } else {
+            hadInvalidEntries = true;
+          }
+        }
+      }
+    } catch {
+      manifest = {};
+    }
+  }
+
+  // Scan DEMO_AUDIO_DIR to auto-discover any audio files present on disk
+  try {
+    const files = fs.readdirSync(DEMO_AUDIO_DIR);
+    for (const file of files) {
+      if (file.endsWith(".mp3") || file.endsWith(".webm") || file.endsWith(".wav") || file.endsWith(".ogg") || file.endsWith(".m4a")) {
+        const id = file.replace(/\.[^/.]+$/, "");
+        if (!manifest[id]) {
+          manifest[id] = {
+            url: `/audio/demos/${file}`,
+            filename: file,
+            updatedAt: Date.now(),
+          };
+        }
+        if (id.includes("__")) {
+          const baseId = id.split("__")[0];
+          if (!manifest[baseId]) {
+            manifest[baseId] = {
+              url: `/audio/demos/${file}`,
+              filename: file,
+              updatedAt: Date.now(),
+            };
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // Explicit Voce Mista / Warm-up alias links to confirmed disk files
+  if (manifest["vocalizzo_mam_fissa"]) {
+    manifest["mix_mam_fissa"] = manifest["vocalizzo_mam_fissa"];
+    manifest["mix_mam_fissa__fixed_5_notes"] = manifest["vocalizzo_mam_fissa"];
+  }
+  if (manifest["vocalizzo_mee_151__gliss_1_5_1"]) {
+    manifest["vocalizzo_mee_151"] = manifest["vocalizzo_mee_151__gliss_1_5_1"];
+    manifest["mix_mee_gliss_151"] = manifest["vocalizzo_mee_151__gliss_1_5_1"];
+    manifest["mix_mee_gliss_151__gliss_1_5_1"] = manifest["vocalizzo_mee_151__gliss_1_5_1"];
+  }
+  if (manifest["lip_thrill_warmup"]) {
+    manifest["sovt_lip_trill"] = manifest["lip_thrill_warmup"];
+  }
+  if (manifest["lip_thrill_warmup__five_notes"]) {
+    manifest["sovt_lip_trill__five_notes"] = manifest["lip_thrill_warmup__five_notes"];
+  }
+
+  if (hadInvalidEntries) {
+    try {
+      fs.writeFileSync(DEMO_MANIFEST_PATH, JSON.stringify(manifest, null, 2), "utf-8");
+    } catch {}
+  }
+
+  return manifest;
+}
+
+function writeDemoManifest(data: Record<string, { url: string; filename: string; updatedAt: number }>) {
+  ensureDemoDirExists();
+  fs.writeFileSync(DEMO_MANIFEST_PATH, JSON.stringify(data, null, 2), "utf-8");
+}
+
+// Public: Get all registered demo audios
+app.get("/api/demo-audio-manifest", (_req, res) => {
+  const manifest = readDemoManifest();
+  res.json({ demos: manifest });
+});
+
+// Admin/Dev: Save an audio demo directly to public/audio/demos
+app.post("/api/admin/save-demo-audio", (req, res) => {
+  const { exerciseId, base64Data, extension = "webm" } = req.body;
+
+  if (!exerciseId || !base64Data) {
+    return res.status(400).json({ error: "exerciseId e base64Data sono obbligatori." });
+  }
+
+  try {
+    ensureDemoDirExists();
+
+    // Clean base64 header properly regardless of codecs (e.g. data:audio/webm;codecs=opus;base64,...)
+    const cleanBase64 = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
+    const buffer = Buffer.from(cleanBase64.trim(), "base64");
+
+    if (buffer.length < 100) {
+      return res.status(400).json({ error: "I dati audio ricevuti sono vuoti o corrotti." });
+    }
+
+    const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeExt = extension.replace(/[^a-zA-Z0-9]/g, "") || "webm";
+    
+    // Save raw upload/recording file
+    const rawFilename = `${safeId}_raw.${safeExt}`;
+    const rawFilePath = path.join(DEMO_AUDIO_DIR, rawFilename);
+    const mp3Filename = `${safeId}.mp3`;
+    const mp3FilePath = path.join(DEMO_AUDIO_DIR, mp3Filename);
+
+    fs.writeFileSync(rawFilePath, buffer);
+
+    let finalFilename = `${safeId}.${safeExt}`;
+    let isMp3Converted = false;
+
+    // Transcode to standard MP3 via FFmpeg for universal browser/iOS/Safari compatibility
+    try {
+      execSync(`ffmpeg -y -i "${rawFilePath}" -c:a libmp3lame -b:a 128k "${mp3FilePath}"`, {
+        stdio: "ignore",
+        timeout: 15000,
+      });
+
+      if (fs.existsSync(mp3FilePath) && fs.statSync(mp3FilePath).size > 100) {
+        finalFilename = mp3Filename;
+        isMp3Converted = true;
+        // Clean up raw temp file
+        try {
+          fs.unlinkSync(rawFilePath);
+        } catch {}
+      }
+    } catch (ffmpegErr) {
+      console.warn("FFmpeg conversion fallback to original file format:", ffmpegErr);
+      const fallbackPath = path.join(DEMO_AUDIO_DIR, finalFilename);
+      fs.renameSync(rawFilePath, fallbackPath);
+    }
+
+    const manifest = readDemoManifest();
+    const publicUrl = `/audio/demos/${finalFilename}`;
+    manifest[safeId] = {
+      url: publicUrl,
+      filename: finalFilename,
+      updatedAt: Date.now(),
+    };
+
+    const relatedKeys: string[] = [safeId];
+    if (safeId.includes("__")) {
+      const baseId = safeId.split("__")[0];
+      relatedKeys.push(baseId);
+      // Also copy file on disk to baseId if not already there
+      const baseFilename = `${baseId}.${isMp3Converted ? "mp3" : safeExt}`;
+      const baseFilePath = path.join(DEMO_AUDIO_DIR, baseFilename);
+      try {
+        if (!fs.existsSync(baseFilePath)) {
+          fs.copyFileSync(path.join(DEMO_AUDIO_DIR, finalFilename), baseFilePath);
+        }
+      } catch {}
+    }
+
+    const aliasClusters: string[][] = [
+      ["lip_thrill_warmup", "sovt_lip_trill"],
+      ["lip_thrill_warmup__five_notes", "sovt_lip_trill__five_notes"],
+      ["vocalizzo_mam_fissa", "mix_mam_fissa", "mix_mam_fissa__fixed_5_notes"],
+      ["vocalizzo_mee_151", "vocalizzo_mee_151__gliss_1_5_1", "mix_mee_gliss_151", "mix_mee_gliss_151__gliss_1_5_1"],
+      ["mix_gne_13521", "mix_gne_12321", "mix_gne_13531", "mix_gne"],
+      ["mix_ye_13521", "mix_ye_12321", "mix_ye_13531", "mix_ye"],
+      ["mix_meee", "vocalizzo_mee", "mix_mee", "meee"],
+      ["mix_mime_ma_mo_mu", "vocalizzo_mime_ma_mo_mu", "mime_ma_mo_mu"],
+      ["mix_mum", "mum", "vocalizzo_mum"],
+      ["mix_nay", "nay", "vocalizzo_nay"],
+    ];
+
+    for (const cluster of aliasClusters) {
+      if (cluster.some(item => relatedKeys.includes(item))) {
+        for (const item of cluster) {
+          if (!relatedKeys.includes(item)) relatedKeys.push(item);
+        }
+      }
+    }
+
+    for (const k of relatedKeys) {
+      manifest[k] = {
+        url: publicUrl,
+        filename: finalFilename,
+        updatedAt: Date.now(),
+      };
+    }
+
+    writeDemoManifest(manifest);
+
+    // If dist exists, mirror the file and manifest there too
+    try {
+      const distAudioDir = path.join(process.cwd(), "dist", "audio", "demos");
+      if (fs.existsSync(path.join(process.cwd(), "dist"))) {
+        if (!fs.existsSync(distAudioDir)) {
+          fs.mkdirSync(distAudioDir, { recursive: true });
+        }
+        const srcFile = path.join(DEMO_AUDIO_DIR, finalFilename);
+        const dstFile = path.join(distAudioDir, finalFilename);
+        if (fs.existsSync(srcFile)) {
+          fs.copyFileSync(srcFile, dstFile);
+        }
+        fs.writeFileSync(path.join(distAudioDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
+      }
+    } catch {}
+
+    console.log(
+      `Audio demo salvato con successo per ${safeId}: ${publicUrl} (${
+        isMp3Converted ? fs.statSync(mp3FilePath).size : buffer.length
+      } bytes)`
+    );
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      exerciseId: safeId,
+      size: isMp3Converted ? fs.statSync(mp3FilePath).size : buffer.length,
+      format: isMp3Converted ? "mp3" : safeExt,
+    });
+  } catch (err: any) {
+    console.error("Errore salvataggio audio demo:", err);
+    return res.status(500).json({ error: err.message || "Errore nel salvataggio dell'audio demo sul server." });
+  }
+});
+
+// Admin/Dev: Delete an audio demo
+app.delete("/api/admin/delete-demo-audio/:exerciseId", (req, res) => {
+  const { exerciseId } = req.params;
+  const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  try {
+    const manifest = readDemoManifest();
+    const existing = manifest[safeId];
+    if (existing && existing.filename) {
+      const filePath = path.join(DEMO_AUDIO_DIR, existing.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    // Also remove any possible mp3/webm variants
+    const mp3Path = path.join(DEMO_AUDIO_DIR, `${safeId}.mp3`);
+    if (fs.existsSync(mp3Path)) {
+      try { fs.unlinkSync(mp3Path); } catch {}
+    }
+    const webmPath = path.join(DEMO_AUDIO_DIR, `${safeId}.webm`);
+    if (fs.existsSync(webmPath)) {
+      try { fs.unlinkSync(webmPath); } catch {}
+    }
+
+    delete manifest[safeId];
+    writeDemoManifest(manifest);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 /* =========================================================
    START EXPRESS + VITE

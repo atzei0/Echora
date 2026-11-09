@@ -353,12 +353,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriptionModalMessage(null);
   };
 
-  const isSubscribed = Boolean(
+  // In ambiente di sviluppo (import.meta.env.DEV, localhost, container di sviluppo ais-dev- o account admin Francesca),
+  // sblocca l'accesso a tutte le sezioni per consentire test, registrazioni e verifiche senza simulare pagamenti.
+  const isDevHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('ais-dev-') ||
+    window.location.hostname.includes('run.app')
+  );
+
+  const isAdminUser = Boolean(
     user && (
+      user.email === 'francesca.atzei0@gmail.com' ||
+      user.id === 'francesca.atzei0@gmail.com' ||
       user.subscriptionStatus === 'active' ||
-      user.subscriptionStatus === 'trialing' ||
-      user.email === 'francesca.atzei0@gmail.com'
+      user.subscriptionStatus === 'trialing'
     )
+  );
+
+  const isSubscribed = Boolean(
+    import.meta.env.DEV ||
+    isDevHost ||
+    isAdminUser
   );
 
   // Helper to write partial updates to Firestore `/users/{uid}` and update local cache

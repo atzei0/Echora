@@ -37,9 +37,30 @@ export const ALL_SCALE_PATTERNS: ScalePatternConfig[] = [
   { id: 'ma_mo_ma_run', label: '27. 1358 - 13531 - 1358 (MA MO MA)', labelEn: '27. 1358 - 13531 - 1358 (MA MO MA)', shortFormula: '1358 13531 1358' },
 ];
 
-export const getScalePatternLabel = (pat: { id: ScalePatternId; label: string }, lang: string) => {
+export const getScalePatternLabel = (pat: { id: ScalePatternId; label: string }, lang: string, exerciseId?: string) => {
+  const isEn = lang === 'en';
+  if (exerciseId === 'mix_mee_gliss_151' && pat.id === 'gliss_1_5_1') {
+    return isEn ? '5. 1 5 1 - Slow Glissando' : '5. 1 5 1 - Glissando Lento';
+  }
+  const ex = exerciseId?.toLowerCase() || '';
+  if (ex.includes('gne') || ex.includes('ye')) {
+    if (pat.id === 'arpeggio_13521' || pat.id === 'triad') {
+      return isEn ? '135 - 31 - Triad Arpeggio' : '135 - 31 - Arpeggio Triade';
+    }
+    if (pat.id === 'three_notes') {
+      return isEn ? '123 - 21 - Do Re Mi' : '123 - 21 - Do Re Mi';
+    }
+  }
+  if (ex.includes('chicchi') || ex.includes('chiii')) {
+    if (pat.id === 'arpeggio_531_desc') {
+      return isEn ? '531 - Descending Triad Arpeggio' : '531 - Arpeggio Triade Discendente';
+    }
+    if (pat.id === 'three_notes') {
+      return isEn ? '123 - 21 - Do Re Mi' : '123 - 21 - Do Re Mi';
+    }
+  }
   const found = ALL_SCALE_PATTERNS.find((p) => p.id === pat.id);
-  if (lang === 'en' && found?.labelEn) {
+  if (isEn && found?.labelEn) {
     return found.labelEn;
   }
   return found?.label || pat.label;

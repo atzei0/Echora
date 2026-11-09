@@ -61,9 +61,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
       if (onNavigateToProfile) {
         onNavigateToProfile();
       }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Errore durante l\'autenticazione');
+    } catch (err: any) {
+      console.error('Firebase Auth error:', err);
+      const code = err?.code;
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setErrorMsg('Email o password non corretti.');
+      } else if (code === 'auth/email-already-in-use') {
+        setErrorMsg('Questa email è già registrata. Prova ad accedere con "Accedi".');
+      } else if (code === 'auth/weak-password') {
+        setErrorMsg('La password deve essere di almeno 6 caratteri.');
+      } else if (code === 'auth/invalid-email') {
+        setErrorMsg('Formato email non valido.');
+      } else {
+        setErrorMsg(err?.message || 'Errore durante l\'autenticazione');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Sparkles, CheckCircle2, ArrowRight, ExternalLink, Play, Target, Award, Sliders, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle2, ArrowRight, ExternalLink, Play, Target, Award, Sliders, AlertCircle, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useRoutineQueue } from '../context/RoutineQueueContext';
+import { useAuth } from '../context/AuthContext';
 import { CustomRoutineBuilder } from './CustomRoutineBuilder';
+import studiaCantaImg from '../assets/images/IMG_8169.jpg';
 
 interface RoutineGeneratorPanelProps {
   onNavigate: (tab: string, subTool?: 'range' | 'tuner' | 'breathing' | 'routine', fromLabel?: string) => void;
@@ -31,6 +33,7 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
   const { language } = useLanguage();
   const isEn = language === 'en';
   const { startRoutineQueue } = useRoutineQueue();
+  const { isSubscribed, openSubscriptionModal } = useAuth();
 
   const [routineMode, setRoutineMode] = useState<'guided' | 'custom'>('guided');
   const [goal, setGoal] = useState<string>('warmup_quick');
@@ -760,12 +763,28 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
 
   const handleStartRoutine = () => {
     if (!activeRoutine || activeRoutine.steps.length === 0) return;
+    if (!isSubscribed) {
+      openSubscriptionModal(
+        isEn
+          ? 'Your routine was created! To start and play it in the interactive player, choose your Echora subscription.'
+          : 'La tua routine è stata creata! Per poterla effettivamente avviare è necessario un abbonamento Echora.'
+      );
+      return;
+    }
     startRoutineQueue(activeRoutine.name, activeRoutine.level, activeRoutine.steps, 0);
     onNavigate(activeRoutine.steps[0].targetTab, 'routine', isEn ? 'Routine Generator' : 'Generatore di Routine');
   };
 
   const handleStartStep = (stepIndex: number) => {
     if (!activeRoutine || !activeRoutine.steps[stepIndex]) return;
+    if (!isSubscribed) {
+      openSubscriptionModal(
+        isEn
+          ? 'Your routine was created! To start and play it in the interactive player, choose your Echora subscription.'
+          : 'La tua routine è stata creata! Per poterla effettivamente avviare è necessario un abbonamento Echora.'
+      );
+      return;
+    }
     startRoutineQueue(activeRoutine.name, activeRoutine.level, activeRoutine.steps, stepIndex);
     onNavigate(activeRoutine.steps[stepIndex].targetTab, 'routine', isEn ? 'Routine Generator' : 'Generatore di Routine');
   };
@@ -920,9 +939,13 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
 
             <button
               onClick={handleStartRoutine}
-              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"
+              className={`px-5 py-3 rounded-2xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer ${
+                !isSubscribed
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 shadow-amber-950/20'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-emerald-500/20'
+              }`}
             >
-              <Play className="w-4 h-4 fill-white" />
+              {!isSubscribed ? <Lock className="w-4 h-4 text-amber-400" /> : <Play className="w-4 h-4 fill-white" />}
               <span>{isEn ? 'Start Exercise Routine' : 'Avvia la Tua Routine'}</span>
             </button>
           </div>
@@ -1197,19 +1220,29 @@ export const RoutineGeneratorPanel: React.FC<RoutineGeneratorPanelProps> = ({ on
 
       {/* Direct 1-on-1 Coaching Card */}
       <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-2 text-center md:text-left">
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-sky-400" />
-            <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
+        <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6 text-center sm:text-left">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-sky-400/40 shadow-xl shrink-0 bg-slate-950 group">
+            <img
+              src={studiaCantaImg}
+              alt={isEn ? 'Study & Sing with me' : 'Studia e Canta con me'}
+              className="w-full h-full object-cover object-[50%_40%] group-hover:scale-105 transition-transform duration-500"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-white">
-            {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
-          </h3>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            {isEn
-              ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
-              : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
-          </p>
+          <div className="space-y-2">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 text-sky-400" />
+              <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-white">
+              {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+              {isEn
+                ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
+                : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
+            </p>
+          </div>
         </div>
         <a
           href="https://beacons.ai/nielafreh"

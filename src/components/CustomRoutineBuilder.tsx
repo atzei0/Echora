@@ -29,7 +29,8 @@ import {
   HelpCircle,
   ListPlus,
   RefreshCw,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 
 export type { CustomExerciseStep, SavedCustomRoutine };
@@ -47,6 +48,8 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
     activeCustomRoutineId: selectedRoutineId,
     saveCustomRoutines,
     setActiveCustomRoutineId: setSelectedRoutineId,
+    isSubscribed,
+    openSubscriptionModal,
   } = useAuth();
 
   const currentRoutine =
@@ -77,7 +80,18 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   }, [selectedRoutineId, currentRoutine]);
 
   // Save current routine to Firestore & localStorage
-  const handleSaveRoutine = () => {
+  const handleSaveRoutine = (isSilent = false) => {
+    if (!isSubscribed) {
+      if (!isSilent) {
+        openSubscriptionModal(
+          isEn
+            ? 'To save your custom routines, choose your Echora subscription.'
+            : 'Per salvare le tue routine personalizzate, scegli il tuo abbonamento Echora.'
+        );
+      }
+      return;
+    }
+
     const updatedRoutine: SavedCustomRoutine = {
       ...currentRoutine,
       name: routineName.trim() || (isEn ? 'My Custom Routine' : 'La Mia Routine Personalizzata'),
@@ -95,6 +109,14 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
 
   // Create new blank routine
   const handleCreateNewRoutine = () => {
+    if (!isSubscribed) {
+      openSubscriptionModal(
+        isEn
+          ? 'Creating multiple custom routines requires a Echora subscription. Choose your subscription to unlock this feature.'
+          : 'La creazione di più routine personalizzate richiede un abbonamento Echora. Scegli il tuo abbonamento per sbloccarla.'
+      );
+      return;
+    }
     const newRoutine = createInitialBlankRoutine(isEn, savedRoutines.length + 1);
     const updated = [...savedRoutines, newRoutine];
     saveCustomRoutines(updated, newRoutine.id);
@@ -102,6 +124,14 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
 
   // Duplicate current routine
   const handleDuplicateRoutine = () => {
+    if (!isSubscribed) {
+      openSubscriptionModal(
+        isEn
+          ? 'Duplicating custom routines requires a Echora subscription. Choose your subscription to unlock this feature.'
+          : 'La duplicazione delle routine richiede un abbonamento Echora. Scegli il tuo abbonamento per sbloccarla.'
+      );
+      return;
+    }
     const dupId = `custom_routine_${Date.now()}`;
     const duplicated: SavedCustomRoutine = {
       ...currentRoutine,
@@ -171,9 +201,17 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   // START / PLAY SEQUENTIAL ROUTINE
   const handleStartCustomRoutine = (startIndex = 0) => {
     if (steps.length === 0) return;
+    if (!isSubscribed) {
+      openSubscriptionModal(
+        isEn
+          ? 'To start and play your custom routine in the interactive player, choose your Echora subscription.'
+          : 'Per avviare ed eseguire la tua routine nel player interattivo, scegli il tuo abbonamento Echora.'
+      );
+      return;
+    }
 
     // Auto-save changes first
-    handleSaveRoutine();
+    handleSaveRoutine(true);
 
     // Convert steps to RoutineQueueItem format
     const queueSteps: RoutineQueueItem[] = steps.map((s) => ({
@@ -315,19 +353,23 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
           <div className="flex items-end gap-2">
             <button
               type="button"
-              onClick={handleSaveRoutine}
+              onClick={() => handleSaveRoutine(false)}
               className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
             >
-              <Save className="w-4 h-4 text-sky-400" />
+              {!isSubscribed ? <Lock className="w-4 h-4 text-amber-400" /> : <Save className="w-4 h-4 text-sky-400" />}
               <span>{saveSuccessNotice ? (isEn ? 'Saved!' : 'Salvata!') : (isEn ? 'Save' : 'Salva')}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleStartCustomRoutine(0)}
-              className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+              className={`flex-1 py-2.5 px-4 rounded-xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] ${
+                !isSubscribed
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 shadow-amber-950/20'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20'
+              }`}
             >
-              <Play className="w-4 h-4 fill-slate-950" />
+              {!isSubscribed ? <Lock className="w-4 h-4 text-amber-400" /> : <Play className="w-4 h-4 fill-slate-950" />}
               <span>{isEn ? 'Play All' : 'Avvia Routine'}</span>
             </button>
           </div>
@@ -416,10 +458,14 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
                       <button
                         type="button"
                         onClick={() => handleStartCustomRoutine(idx)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 hover:text-white text-xs font-extrabold flex items-center gap-1 transition-all cursor-pointer"
-                        title={isEn ? 'Play from this step' : 'Metti in play da questo esercizio'}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                          !isSubscribed
+                            ? 'bg-slate-800 hover:bg-slate-700 border-amber-500/40 text-amber-300'
+                            : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300 hover:text-white'
+                        }`}
+                        title={!isSubscribed ? (isEn ? 'Locked — Subscription required' : 'Bloccato — Richiede abbonamento') : (isEn ? 'Play from this step' : 'Metti in play da questo esercizio')}
                       >
-                        <Play className="w-3 h-3 fill-emerald-300" />
+                        {!isSubscribed ? <Lock className="w-3 h-3 text-amber-400" /> : <Play className="w-3 h-3 fill-emerald-300" />}
                         <span>{isEn ? 'Play from here' : 'Play da qui'}</span>
                       </button>
 

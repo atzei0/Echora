@@ -51,14 +51,14 @@ export function getMasterOutput(ctx: AudioContext): AudioNode {
   // Dynamics compressor acts as a transparent master bus limiter/compressor
   // to avoid digital distortion while maximizing clear, punchy acoustic volume
   const compressor = ctx.createDynamicsCompressor();
-  compressor.threshold.setValueAtTime(-4, ctx.currentTime);
-  compressor.knee.setValueAtTime(4, ctx.currentTime);
-  compressor.ratio.setValueAtTime(3.5, ctx.currentTime);
+  compressor.threshold.setValueAtTime(-1, ctx.currentTime);
+  compressor.knee.setValueAtTime(3, ctx.currentTime);
+  compressor.ratio.setValueAtTime(2.0, ctx.currentTime);
   compressor.attack.setValueAtTime(0.002, ctx.currentTime);
   compressor.release.setValueAtTime(0.12, ctx.currentTime);
 
   const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(1.4, ctx.currentTime); // Clean gain boost
+  masterGain.gain.setValueAtTime(2.2, ctx.currentTime); // Strong, clear master output
 
   compressor.connect(masterGain);
   masterGain.connect(ctx.destination);
@@ -210,7 +210,7 @@ export function playPianoNote(midi: number, durationSec = 1.0, volume = 0.85): v
 
       const gainNode = ctx.createGain();
       gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(volume * 1.8, now + 0.004);
+      gainNode.gain.linearRampToValueAtTime(volume * 3.4, now + 0.004);
       gainNode.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(durationSec, 0.8));
 
       srcNode.connect(gainNode);
@@ -233,8 +233,8 @@ export function playPianoNote(midi: number, durationSec = 1.0, volume = 0.85): v
     // Master envelope for note with rich presence
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0, now);
-    masterGain.gain.linearRampToValueAtTime(volume * 1.7, now + 0.004); // Sharp acoustic hammer impact
-    masterGain.gain.exponentialRampToValueAtTime(volume * 1.1, now + 0.08); // Initial pluck decay
+    masterGain.gain.linearRampToValueAtTime(volume * 3.2, now + 0.004); // Sharp acoustic hammer impact
+    masterGain.gain.exponentialRampToValueAtTime(volume * 2.0, now + 0.08); // Initial pluck decay
     masterGain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(durationSec, 0.7)); // Natural wood/string decay
 
     // Soundboard Body Tone Filter (Warm acoustic wood resonance EQ)
@@ -342,7 +342,7 @@ export function playPianoChord(rootMidi: number, durationSec = 1.8, volume = 0.8
     const chordOffsets = [0, 4, 7, 12]; // Major triad + octave
     chordOffsets.forEach((offset, idx) => {
       setTimeout(() => {
-        const noteVol = idx === 0 ? volume * 0.95 : volume * 0.8;
+        const noteVol = idx === 0 ? volume * 1.05 : volume * 0.92;
         playPianoNote(rootMidi + offset, durationSec, noteVol);
       }, idx * 14); // Slightly staggered stroke for acoustic realism
     });

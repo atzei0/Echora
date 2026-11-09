@@ -66,8 +66,17 @@ export class PitchDetector {
       updateLoop();
       return true;
     } catch (err: any) {
-      console.error('Mic access error:', err);
-      onError(err.message || 'Impossibile accedere al microfono. Verifica i permessi.');
+      console.warn('Mic access error:', err);
+      const isPerm =
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError' ||
+        (typeof err?.message === 'string' && /permission|denied|not allowed/i.test(err.message));
+
+      if (isPerm) {
+        onError('Accesso al microfono bloccato dal browser (Permesso negato). Sbloccalo cliccando sul lucchetto o impostazioni sito nella barra in alto e ricarica la pagina.');
+      } else {
+        onError(err.message || 'Impossibile accedere al microfono. Verifica i permessi.');
+      }
       return false;
     }
   }

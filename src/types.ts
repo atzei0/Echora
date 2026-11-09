@@ -72,6 +72,14 @@ export interface Exercise {
   vocalTipEn?: string;
   targetFocus?: string;
   targetFocusEn?: string;
+  patternOverrides?: Record<string, {
+    instructions?: string[];
+    instructionsEn?: string[];
+    vocalTip?: string;
+    vocalTipEn?: string;
+    description?: string;
+    descriptionEn?: string;
+  }>;
 }
 
 export interface PitchDetectionResult {

@@ -43,9 +43,9 @@ function MainApp() {
     subscriptionModalMessage,
   } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('start');
-  const [startSubTool, setStartSubTool] = useState<'range' | 'tuner' | 'breathing' | 'routine' | 'tempo'>('routine');
+  const [startSubTool, setStartSubTool] = useState<'range' | 'tuner' | 'breathing' | 'routine' | 'tempo'>('range');
   const [navHistory, setNavHistory] = useState<HistoryEntry[]>([
-    { tab: 'start', subTool: 'routine' }
+    { tab: 'start', subTool: 'range' }
   ]);
 
   const handleNavigate = (
@@ -60,14 +60,16 @@ function MainApp() {
       subTool: activeTab === 'start' ? startSubTool : undefined,
       fromLabel:
         fromLabel ||
-        (activeTab === 'start' && startSubTool === 'routine'
-          ? (language === 'en' ? 'Routine Generator' : 'Generatore di Routine')
+        (activeTab === 'start' && startSubTool === 'range'
+          ? (language === 'en' ? 'Vocal Range' : 'Estensione Vocale')
           : undefined),
     };
 
     setNavHistory((prev) => [...prev, currentEntry]);
     if (subTool) {
       setStartSubTool(subTool);
+    } else if (targetTab === 'tools') {
+      setStartSubTool('range');
     }
     setActiveTab(targetTab);
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
@@ -91,7 +93,7 @@ function MainApp() {
       setActiveTab(previous.tab);
     } else {
       setActiveTab('start');
-      setStartSubTool('routine');
+      setStartSubTool('range');
     }
   };
 
@@ -102,7 +104,7 @@ function MainApp() {
 
   useEffect(() => {
     try {
-      window.history.replaceState({ tab: 'start', subTool: 'routine' }, '', window.location.pathname);
+      window.history.replaceState({ tab: 'start', subTool: 'range' }, '', window.location.pathname);
     } catch {
       // ignore
     }
@@ -139,7 +141,7 @@ function MainApp() {
     } else if (lastEntry.tab === 'cooldown') {
       backButtonLabel = language === 'en' ? '← Cool-down' : '← Defaticamento';
     } else if (lastEntry.tab === 'tools') {
-      backButtonLabel = language === 'en' ? '← Tools' : '← Strumenti';
+      backButtonLabel = language === 'en' ? '← Other Tools' : '← Altri Strumenti';
     } else if (lastEntry.tab === 'profile') {
       backButtonLabel = language === 'en' ? '← Profile' : '← Profilo';
     }
@@ -222,7 +224,7 @@ function MainApp() {
             vocalProfile={vocalProfile}
             onSaveProfile={handleSaveProfile}
             onNavigate={handleNavigate}
-            initialSubTool={startSubTool === 'breathing' ? 'routine' : (startSubTool as 'range' | 'tuner' | 'routine' | 'tempo')}
+            initialSubTool={startSubTool}
           />
         )}
 

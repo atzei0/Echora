@@ -12,7 +12,8 @@ import {
   Sliders
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import francescaCoachImg from '../assets/images/francesca_vocal_coach_1786203954996.jpg';
+import francescaImg from '../assets/images/Documentazione Francesca Atzei x Claudia Bozzato-25.jpg';
+import studiaCantaImg from '../assets/images/IMG_8169.jpg';
 
 interface StartHereViewProps {
   notation: NoteNotation;
@@ -120,12 +121,15 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
                   <div className="absolute -inset-1.5 bg-gradient-to-tr from-sky-500 via-cyan-400 to-indigo-500 rounded-3xl blur-md opacity-40 group-hover:opacity-75 transition duration-500"></div>
                   <div className="relative rounded-3xl overflow-hidden border-2 border-sky-400/50 shadow-2xl bg-slate-950 aspect-[4/5]">
                     <img
-                      src={francescaCoachImg}
+                      src={francescaImg}
                       alt="Francesca Vocal Coach"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover object-[50%_25%] group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
                     />
                   </div>
+                  <p className="text-[11px] text-slate-400/80 italic text-center mt-2.5 font-medium tracking-wide">
+                    {isEn ? 'Photo by Claudia Bozzato' : 'Fotografia di Claudia Bozzato'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -204,6 +208,9 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
                   <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
                     {t('phase3Desc1')}
                   </p>
+                  <p className="text-xs font-bold text-emerald-300 bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-800/40">
+                    {t('phase3Desc2')}
+                  </p>
                 </div>
 
                 <button
@@ -222,7 +229,7 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
                   <div className="flex items-center space-x-2 text-sky-400">
                     <Sliders className="w-5 h-5 text-sky-400" />
                     <h3 className="text-lg font-black text-white">
-                      {isEn ? 'Other Tools' : 'Altri Strumenti'}
+                      {isEn ? 'Other tools you can use in Echora' : 'Altri strumenti che puoi usare in Echora'}
                     </h3>
                   </div>
 
@@ -230,32 +237,40 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
                     <li className="flex items-start gap-1.5">
                       <span className="text-sky-400 font-bold">•</span>
                       <span>
+                        <strong className="text-white">{isEn ? 'Range: ' : 'Estensione: '}</strong>
                         {isEn
-                          ? 'Discover your vocal range and manage exercises based on it'
-                          : 'Scopri la tua estensione vocale e gestisci gli esercizi sulla base di questa'}
+                          ? 'test your vocal range to calibrate your exercises or just out of curiosity and to see your progress over time'
+                          : 'testa la tua estensione vocale per regolarti con gli esercizi o solo per curiosità e per vedere i tuoi progressi nel tempo'}
                       </span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-sky-400 font-bold">•</span>
                       <span>
-                        {isEn ? 'Train your pitch' : 'Allena la tua intonazione'}
+                        <strong className="text-white">{isEn ? 'Pitch: ' : 'Intonazione: '}</strong>
+                        {isEn ? 'games to test and train your intonation' : 'giochi per testare e allenare l\'intonazione'}
                       </span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-sky-400 font-bold">•</span>
                       <span>
-                        <strong className="text-white">
-                          {isEn ? 'Routine Generator: ' : 'Generatore di routine: '}
-                        </strong>
+                        <strong className="text-white">{isEn ? 'Breathing: ' : 'Respirazione: '}</strong>
+                        {isEn ? 'well, this one speaks for itself' : 'beh, si spiega da sè questo'}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-sky-400 font-bold">•</span>
+                      <span>
+                        <strong className="text-white">{isEn ? 'Tempo: ' : 'Tempo: '}</strong>
+                        {isEn ? 'games and exercises to improve your rhythm' : 'giochi ed esercizi per migliorare il ritmo'}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-sky-400 font-bold">•</span>
+                      <span>
+                        <strong className="text-white">{isEn ? 'Routine Generator: ' : 'Generatore di routine: '}</strong>
                         {isEn
-                          ? 'choose your goal and a series of exercises will be selected from the site to achieve it, or build and save your very own routine, selecting exercises manually from the site so you don\'t have to look for them every time'
-                          : 'scegli il tuo obiettivo e verrà selezionata una serie di esercizi dal sito per raggiungerlo oppure costruisci e salva la tua personalissima routine, selezionando manualmente gli esercizi dal sito, per non doverli cercare ogni volta'}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-sky-400 font-bold">•</span>
-                      <span>
-                        {isEn ? 'Train on tempo' : 'Allenati sul tempo'}
+                          ? 'choose your goals and you will be assigned an exercise routine curated by me, or select your favorite exercises from Echora and save them in a preset so you always have them ready'
+                          : 'scegli i tuoi obiettivi e ti verrà assegnata una routine di esercizi selezionata da me, oppure seleziona i tuoi esercizi preferiti da Echora e salvali in un preset in modo da averceli sempre pronti'}
                       </span>
                     </li>
                   </ul>
@@ -263,7 +278,7 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onNavigate('tools')}
+                  onClick={() => onNavigate('tools', 'range')}
                   className="w-full mt-4 py-2.5 rounded-xl bg-sky-500/30 hover:bg-sky-500 text-sky-100 hover:text-white border border-sky-500/50 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>{isEn ? 'Go to other Tools' : 'Vai agli altri Strumenti'}</span>
@@ -293,20 +308,30 @@ export const StartHereView: React.FC<StartHereViewProps> = ({
 
       {/* Banner: “Studia e Canta con me!” */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/40 rounded-3xl p-6 sm:p-10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 text-center md:text-left">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-sky-400" />
-              <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
+        <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/40 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6 text-center sm:text-left">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-sky-400/40 shadow-xl shrink-0 bg-slate-950 group">
+              <img
+                src={studiaCantaImg}
+                alt={isEn ? 'Study & Sing with me' : 'Studia e Canta con me'}
+                className="w-full h-full object-cover object-[50%_40%] group-hover:scale-105 transition-transform duration-500"
+                referrerPolicy="no-referrer"
+              />
             </div>
-            <h3 className="text-2xl sm:text-4xl font-black text-white">
-              {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              {isEn
-                ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
-                : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
-            </p>
+            <div className="space-y-2">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-4 h-4 text-sky-400" />
+                <span>{isEn ? 'Lessons & Workshops' : 'Lezioni & Laboratori'}</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white">
+                {isEn ? 'Study & Sing with me!' : 'Studia e Canta con me!'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                {isEn
+                  ? "Echora does not replace 1:1 lessons but supports your practice between sessions. If you need guidance, you can take lessons with me! Discover all course and workshop info on my website!"
+                  : "Echora non sostituisce la lezione 1:1 ma ti è da supporto per lo studio fra una lezione e l'altra. Se hai bisogno di una guida, puoi prendere lezioni insieme a me! Scopri tutte le info sui corsi di canto e altri laboratori in presenza e onine, sul mio sito!"}
+              </p>
+            </div>
           </div>
           <a
             href="https://beacons.ai/nielafreh"

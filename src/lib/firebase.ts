@@ -1,34 +1,44 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import appletConfig from '../../firebase-applet-config.json';
 
+// Configurazione ufficiale Firebase: dà priorità alle variabili d'ambiente Vite (VITE_*),
+// e utilizza come base solida i parametri ufficiali di firebase-applet-config.json
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || appletConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || appletConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || appletConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || appletConfig.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || appletConfig.measurementId || '',
 };
 
-const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+// Verifica di validità: eliminato qualsiasi fallback su placeholder fittizi
+const isConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== 'placeholder-api-key' &&
+  firebaseConfig.projectId &&
+  firebaseConfig.projectId !== 'placeholder-project'
+);
+
+if (!isConfigured) {
+  const missing: string[] = [];
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'placeholder-api-key') {
+    missing.push('apiKey / VITE_FIREBASE_API_KEY');
+  }
+  if (!firebaseConfig.projectId || firebaseConfig.projectId === 'placeholder-project') {
+    missing.push('projectId / VITE_FIREBASE_PROJECT_ID');
+  }
+  throw new Error(
+    `[Firebase Error] Configurazione non valida: parametri mancanti (${missing.join(', ')}). Configura le variabili d'ambiente VITE_FIREBASE_* o verifica firebase-applet-config.json.`
+  );
+}
 
 let app;
 if (!getApps().length) {
-  if (isConfigured) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    console.warn(
-      '⚠️ Configurazione Firebase mancante. Assicurati di impostare VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID, ecc. nelle variabili d\'ambiente.'
-    );
-    app = initializeApp({
-      apiKey: 'placeholder-api-key',
-      authDomain: 'placeholder.firebaseapp.com',
-      projectId: 'placeholder-project',
-      appId: '1:000000000000:web:000000000000',
-    });
-  }
+  app = initializeApp(firebaseConfig);
 } else {
   app = getApp();
 }
@@ -42,11 +52,11 @@ googleProvider.setCustomParameters({
 
 const firestoreDatabaseId =
   import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID ||
-  import.meta.env.VITE_FIREBASE_DATABASE_ID;
+  import.meta.env.VITE_FIREBASE_DATABASE_ID ||
+  appletConfig.firestoreDatabaseId;
 
 export const db = firestoreDatabaseId && firestoreDatabaseId !== '(default)'
   ? getFirestore(app, firestoreDatabaseId)
   : getFirestore(app);
 
 export default app;
-

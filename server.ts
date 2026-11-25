@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { execFileSync } from "child_process";
-import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import Stripe from "stripe";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
@@ -2544,6 +2543,7 @@ async function startServer() {
     process.env.NODE_ENV !==
     "production"
   ) {
+    const { createServer: createViteServer } = await import("vite");
     const vite =
       await createViteServer({
         server: {

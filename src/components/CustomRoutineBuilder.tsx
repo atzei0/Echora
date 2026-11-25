@@ -5,6 +5,7 @@ import { ALL_SCALE_PATTERNS, getScalePatternLabel } from '../data/scalePatterns'
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth, createInitialBlankRoutine } from '../context/AuthContext';
 import { useRoutineQueue, RoutineQueueItem } from '../context/RoutineQueueContext';
+import { INPUT_LIMITS, sanitizePlainText } from '../utils/validation';
 import {
   Play,
   Plus,
@@ -63,6 +64,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
+  const [routineErrorNotice, setRoutineErrorNotice] = useState<string | null>(null);
 
   const lastSyncedSignatureRef = useRef<string>(`${currentRoutine?.id}_${currentRoutine?.updatedAt}`);
 
@@ -92,12 +94,19 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
       return;
     }
 
+    const cleanName = sanitizePlainText(routineName, INPUT_LIMITS.ROUTINE_NAME_MAX);
+    const cleanDesc = sanitizePlainText(routineDesc, INPUT_LIMITS.ROUTINE_DESC_MAX, true);
+    const sanitizedSteps = steps.map((s) => ({
+      ...s,
+      vowel: sanitizePlainText(s.vowel, INPUT_LIMITS.VOWEL_MAX) || 'A',
+    }));
+
     const updatedRoutine: SavedCustomRoutine = {
       ...currentRoutine,
-      name: routineName.trim() || (isEn ? 'My Custom Routine' : 'La Mia Routine Personalizzata'),
-      description: routineDesc.trim(),
+      name: cleanName || (isEn ? 'My Custom Routine' : 'La Mia Routine Personalizzata'),
+      description: cleanDesc,
       updatedAt: Date.now(),
-      steps,
+      steps: sanitizedSteps,
     };
 
     lastSyncedSignatureRef.current = `${updatedRoutine.id}_${updatedRoutine.updatedAt}`;
@@ -149,9 +158,11 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
   // Delete routine
   const handleDeleteRoutine = (idToDelete: string) => {
     if (savedRoutines.length <= 1) {
-      alert(isEn ? 'You must keep at least one routine.' : 'Devi mantenere almeno una routine nella lista.');
+      setRoutineErrorNotice(isEn ? 'You must keep at least one routine.' : 'Devi mantenere almeno una routine nella lista.');
+      setTimeout(() => setRoutineErrorNotice(null), 3500);
       return;
     }
+    setRoutineErrorNotice(null);
     const updated = savedRoutines.filter((r) => r.id !== idToDelete);
     saveCustomRoutines(updated, updated[0].id);
   };
@@ -343,6 +354,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
             </label>
             <input
               type="text"
+              maxLength={INPUT_LIMITS.ROUTINE_NAME_MAX}
               value={routineName}
               onChange={(e) => setRoutineName(e.target.value)}
               placeholder={isEn ? 'e.g. My Morning Warmup' : 'es. La Mia Routine del Mattino'}
@@ -374,6 +386,12 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
             </button>
           </div>
         </div>
+
+        {routineErrorNotice && (
+          <div className="p-3 rounded-xl bg-amber-950/70 border border-amber-500/40 text-amber-200 text-xs font-semibold">
+            {routineErrorNotice}
+          </div>
+        )}
       </div>
 
       {/* Routine Steps Sequence List */}
@@ -537,6 +555,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
                       </label>
                       <input
                         type="text"
+                        maxLength={INPUT_LIMITS.VOWEL_MAX}
                         value={step.vowel}
                         onChange={(e) => handleUpdateStep(idx, { vowel: e.target.value })}
                         placeholder="es. MEEE, MUM"
@@ -619,6 +638,7 @@ export const CustomRoutineBuilder: React.FC<CustomRoutineBuilderProps> = ({ onNa
             <div className="p-3 sm:p-4 border-b border-slate-800 space-y-3 bg-slate-950/60">
               <input
                 type="text"
+                maxLength={INPUT_LIMITS.SEARCH_MAX}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={isEn ? 'Search exercise by name or vowel (e.g. MUM, Lip Thrill, Agility)...' : 'Cerca esercizio per nome o suono (es. MUM, Lip Thrill, Agilità)...'}

@@ -2,32 +2,72 @@
   "entities": {
     "users": {
       "title": "User Profile",
-      "description": "User profiles and vocal coaching stats",
+      "description": "User profiles, vocal coaching progress, and server-managed Stripe subscription state",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "name": { "type": "string" },
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "avatarUrl": { "type": "string" },
-        "provider": { "type": "string" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 254 },
+        "name": { "type": "string", "maxLength": 160 },
+        "firstName": { "type": "string", "maxLength": 80 },
+        "lastName": { "type": "string", "maxLength": 80 },
+        "avatarUrl": { "type": "string", "maxLength": 500000 },
+        "provider": { "type": "string", "enum": ["email", "google"] },
         "emailVerified": { "type": "boolean" },
         "vocalProfile": { "type": "object" },
-        "customRoutines": { "type": "array" },
-        "activeCustomRoutineId": { "type": "string" },
-        "practiceSessions": { "type": "array" },
-        "preferredLanguage": { "type": "string" },
-        "preferredNotation": { "type": "string" },
-        "vocalLevel": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "subscriptionStatus": { "type": "string" },
-        "subscriptionPlan": { "type": "string" },
-        "subscriptionPeriodEnd": { "type": "string" },
-        "stripeCustomerId": { "type": "string" },
-        "stripeSubscriptionId": { "type": "string" }
+        "customRoutines": { "type": "array", "maxItems": 50 },
+        "activeCustomRoutineId": { "type": "string", "maxLength": 128 },
+        "practiceSessions": { "type": "array", "maxItems": 1000 },
+        "preferredLanguage": { "type": "string", "enum": ["it", "en"] },
+        "preferredNotation": { "type": "string", "enum": ["latin", "scientific"] },
+        "vocalLevel": { "type": "string", "maxLength": 80 },
+        "xp": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "role": { "type": "string", "enum": ["student", "coach"] },
+        "isCoach": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 },
+        "subscriptionStatus": { "type": "string", "maxLength": 40 },
+        "subscriptionPlan": { "type": "string", "maxLength": 40 },
+        "subscriptionPeriodEnd": { "type": "string", "maxLength": 64 },
+        "cancelAtPeriodEnd": { "type": "boolean" },
+        "stripeCustomerId": { "type": "string", "maxLength": 128 },
+        "stripeSubscriptionId": { "type": "string", "maxLength": 128 },
+        "pendingPlan": { "type": "string", "maxLength": 40 },
+        "pendingPlanAmount": { "type": "number" },
+        "pendingPlanPaymentIntentId": { "type": "string", "maxLength": 128 },
+        "pendingPlanStartsAt": { "type": "string", "maxLength": 64 },
+        "pendingPlanInvoiceItemId": { "type": "string", "maxLength": 128 },
+        "stripeScheduleId": { "type": "string", "maxLength": 128 },
+        "lastStripeEventCreated": { "type": "number" }
       },
       "required": ["uid", "email"]
+    },
+    "demo_audio_recordings": {
+      "title": "Official Exercise Demo Audio",
+      "description": "Coach-recorded official vocal demos mapped strictly to exerciseId and optional patternId",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "maxLength": 160 },
+        "exerciseId": { "type": "string", "maxLength": 128 },
+        "patternId": { "type": "string", "maxLength": 128 },
+        "audioData": { "type": "string", "maxLength": 1000000 },
+        "extension": { "type": "string", "enum": ["webm", "mp3", "wav", "ogg", "m4a", "mp4"] },
+        "updatedAt": { "type": "number" },
+        "authorEmail": { "type": "string", "maxLength": 254 }
+      },
+      "required": ["key", "exerciseId", "audioData", "extension", "updatedAt"]
+    },
+    "stripe_webhook_events": {
+      "title": "Processed Stripe Webhook Events",
+      "description": "Server-only deduplication log preventing Stripe webhook replay attacks",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 80 },
+        "created": { "type": "number" },
+        "processedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["eventId", "type", "created", "processedAt"]
     }
   }
 }

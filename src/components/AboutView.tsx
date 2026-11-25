@@ -19,6 +19,12 @@ import { useAuth } from '../context/AuthContext';
 import echoraLogo from '../assets/images/echora_logo.jpeg';
 import { DEFAULT_REVIEWS, ReviewItem } from '../data/reviews';
 import { ReviewsCarousel } from './ReviewsCarousel';
+import {
+  INPUT_LIMITS,
+  ALLOWED_REVIEW_TAGS,
+  sanitizePlainText,
+  validatePersonName,
+} from '../utils/validation';
 
 // Images of Francesca for bio & slideshow
 import francescaOriginaleImg from '../assets/images/francesca_originale.png';
@@ -115,6 +121,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
   const [newRating, setNewRating] = useState(5);
   const [newTag, setNewTag] = useState('Lezioni di Canto Online');
   const [newComment, setNewComment] = useState('');
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [submittedMessage, setSubmittedMessage] = useState(false);
 
   // Slideshow state
@@ -159,18 +166,37 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
 
   const handleAddReview = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFullName.trim() || !newComment.trim()) return;
+    setReviewError(null);
 
-    const parts = newFullName.trim().split(' ');
+    const nameCheck = validatePersonName(newFullName, isEn ? 'Name' : 'Nome');
+    if (!nameCheck.valid) {
+      setReviewError(nameCheck.error || (isEn ? 'Enter a valid name.' : 'Inserisci un nome valido.'));
+      return;
+    }
+
+    const cleanComment = sanitizePlainText(newComment, INPUT_LIMITS.REVIEW_COMMENT_MAX, true);
+    if (cleanComment.length < INPUT_LIMITS.REVIEW_COMMENT_MIN) {
+      setReviewError(
+        isEn
+          ? `Review comment must be at least ${INPUT_LIMITS.REVIEW_COMMENT_MIN} characters.`
+          : `Scrivi almeno ${INPUT_LIMITS.REVIEW_COMMENT_MIN} caratteri nella recensione.`
+      );
+      return;
+    }
+
+    const safeTag = ALLOWED_REVIEW_TAGS.has(newTag) ? newTag : 'Lezioni di Canto Online';
+    const safeRating = Math.max(1, Math.min(5, Math.round(Number(newRating) || 5)));
+
+    const parts = nameCheck.cleaned.split(' ');
     const publicDisplayName = parts[0] + (parts.length > 1 ? ` ${parts[parts.length - 1].charAt(0).toUpperCase()}.` : '');
 
     const newRev: ReviewItem = {
       id: `rev-${Date.now()}`,
       author: publicDisplayName,
-      rating: newRating,
+      rating: safeRating,
       date: isEn ? 'Verified Student' : 'Allievo Verificato',
-      tag: newTag,
-      comment: newComment.trim(),
+      tag: safeTag,
+      comment: cleanComment,
       likes: 1,
     };
 
@@ -663,6 +689,12 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
               </div>
             ) : (
               <form onSubmit={handleAddReview} className="space-y-4 text-xs sm:text-sm">
+                {reviewError && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 text-xs font-semibold">
+                    {reviewError}
+                  </div>
+                )}
+
                 <div className="space-y-1">
                   <label className="block text-slate-300 font-bold">
                     {isEn ? 'Full Name (First and Last Name)' : 'Nome e Cognome'}
@@ -675,6 +707,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
                   <input
                     type="text"
                     required
+                    maxLength={INPUT_LIMITS.REVIEW_NAME_MAX}
                     placeholder={isEn ? 'e.g. Marco Rossi' : 'Es. Marco Rossi'}
                     value={newFullName}
                     onChange={(e) => setNewFullName(e.target.value)}
@@ -721,6 +754,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
                   <textarea
                     required
                     rows={4}
+                    maxLength={INPUT_LIMITS.REVIEW_COMMENT_MAX}
                     placeholder={isEn ? 'Write here your experience...' : 'Scrivi qui la tua esperienza con il corso o con l\'app...'}
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}

@@ -11,6 +11,12 @@ import { VocalRangeProfile, PracticeSession, SavedRecording } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { useRoutineQueue, RoutineQueueItem } from '../context/RoutineQueueContext';
 import { SimulatedInboxModal } from './SimulatedInboxModal';
+import {
+  INPUT_LIMITS,
+  ALLOWED_AVATAR_MIME_TYPES,
+  validatePersonName,
+  isTrustedStripeRedirectUrl,
+} from '../utils/validation';
 
 interface SavedCustomRoutine {
   id: string;
@@ -85,12 +91,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editFirstName, setEditFirstName] = useState(user?.firstName || '');
   const [editLastName, setEditLastName] = useState(user?.lastName || '');
-  const [editEmail, setEditEmail] = useState(user?.email || '');
-  const [editVocalLevel, setEditVocalLevel] = useState(user?.vocalLevel || 'Allievo / Cantante');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [profileErrorMsg, setProfileErrorMsg] = useState('');
   
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
+  const [checkingVerification, setCheckingVerification] = useState(false);
+
+  useEffect(() => {
+    if (isEditing && user) {
+      setEditFirstName(user.firstName || '');
+      setEditLastName(user.lastName || '');
+      setProfileErrorMsg('');
+    }
+  }, [isEditing, user?.firstName, user?.lastName]);
 
   const handleOpenCustomerPortal = async () => {
     if (!user?.id) return;
@@ -116,8 +130,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         throw new Error(data.error || 'Impossibile accedere al Customer Portal');
       }
 
-      if (data.url) {
+      if (data.url && isTrustedStripeRedirectUrl(data.url)) {
         window.location.href = data.url;
+      } else {
+        throw new Error('URL del portale pagamenti non valido o non attendibile.');
       }
     } catch (err: any) {
       console.error('Errore Customer Portal:', err);
@@ -130,9 +146,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setProfileErrorMsg('');
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Seleziona un\'immagine inferiore a 5MB');
+    if (!ALLOWED_AVATAR_MIME_TYPES.has(file.type)) {
+      setProfileErrorMsg('Formato immagine non supportato. Usa JPG, PNG o WebP.');
+      return;
+    }
+
+    if (file.size > INPUT_LIMITS.AVATAR_MAX_BYTES) {
+      setProfileErrorMsg('Seleziona un\'immagine inferiore a 350 KB.');
       return;
     }
 
@@ -164,11 +186,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileErrorMsg('');
+
+    const firstRes = validatePersonName(editFirstName, 'Nome');
+    if (!firstRes.valid) {
+      setProfileErrorMsg(firstRes.error || 'Nome non valido.');
+      return;
+    }
+    const lastRes = validatePersonName(editLastName, 'Cognome');
+    if (!lastRes.valid) {
+      setProfileErrorMsg(lastRes.error || 'Cognome non valido.');
+      return;
+    }
+
     updateUser({
-      firstName: editFirstName.trim(),
-      lastName: editLastName.trim(),
-      email: editEmail.trim(),
-      vocalLevel: editVocalLevel,
+      firstName: firstRes.cleaned,
+      lastName: lastRes.cleaned,
     });
     setIsEditing(false);
     setSaveSuccessMsg('Profilo aggiornato con successo!');
@@ -281,7 +314,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-950 via-slate-900 to-blue-950 border border-sky-500/50 text-sky-100 flex items-start sm:items-center justify-between gap-3 shadow-xl animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-sky-500/20 text-sky-300 shrink-0">
-              <Mail className="w-5 h-5 animate-bounce" />
+              <Mail className="w-5 h-5" />
             </div>
             <p className="text-xs sm:text-sm font-medium leading-relaxed">
               {lastRegistrationNotification}
@@ -296,9 +329,48 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       )}
 
+      {/* Email Verification Reminder Banner for unverified Email/Password users */}
+      {user.provider === 'email' && !user.emailVerified && (
+        <div className="p-4 rounded-2xl bg-amber-950/50 border border-amber-500/40 text-amber-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="space-y-0.5 text-xs">
+            <p className="font-bold text-amber-300">Verifica il tuo indirizzo email</p>
+            <p className="text-slate-300">
+              Per completare la sicurezza dell&apos;account ({user.email}), conferma il link ricevuto via email.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => sendConfirmationEmail()}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Invia email verifica
+            </button>
+            <button
+              type="button"
+              disabled={checkingVerification}
+              onClick={async () => {
+                setCheckingVerification(true);
+                await verifyEmail();
+                setCheckingVerification(false);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {checkingVerification ? 'Controllo...' : 'Ho verificato'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {saveSuccessMsg && (
         <div className="p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-200 text-xs text-center font-bold">
           {saveSuccessMsg}
+        </div>
+      )}
+
+      {profileErrorMsg && (
+        <div className="p-3.5 rounded-xl bg-red-950/90 border border-red-500/50 text-red-200 text-xs text-center font-bold">
+          {profileErrorMsg}
         </div>
       )}
 
@@ -334,7 +406,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <input 
                 id="avatar-file-input"
                 type="file" 
-                accept="image/*" 
+                accept="image/jpeg,image/png,image/webp" 
                 onChange={handleAvatarFileChange} 
                 className="hidden" 
               />
@@ -383,7 +455,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
             {/* Avatar Selector in Edit Form */}
             <div className="space-y-2">
-              <label className="block text-slate-400 font-bold text-xs">Foto Profilo</label>
+              <label className="block text-slate-400 font-bold text-xs">Foto Profilo (max 350 KB, JPG/PNG/WebP)</label>
               <div className="flex flex-wrap items-center gap-3">
                 <label 
                   htmlFor="avatar-file-input-edit"
@@ -394,7 +466,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <input 
                   id="avatar-file-input-edit"
                   type="file" 
-                  accept="image/*" 
+                  accept="image/jpeg,image/png,image/webp" 
                   onChange={handleAvatarFileChange} 
                   className="hidden" 
                 />
@@ -407,6 +479,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <input
                   type="text"
                   required
+                  maxLength={INPUT_LIMITS.NAME_MAX}
                   value={editFirstName}
                   onChange={(e) => setEditFirstName(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-sky-500"
@@ -418,6 +491,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <input
                   type="text"
                   required
+                  maxLength={INPUT_LIMITS.NAME_MAX}
                   value={editLastName}
                   onChange={(e) => setEditLastName(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-sky-500"
@@ -425,13 +499,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Email</label>
+                <label className="block text-slate-400 font-bold mb-1">Email (Account Verificato)</label>
                 <input
                   type="email"
-                  required
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-sky-500"
+                  disabled
+                  readOnly
+                  value={user.email}
+                  className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-400 outline-none cursor-not-allowed"
                 />
               </div>
             </div>

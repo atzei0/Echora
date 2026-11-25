@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, Square, Play, Pause, Trash2, Save, Volume2, Upload, AlertTriangle, HelpCircle } from 'lucide-react';
 import { SavedRecording } from '../types';
+import { INPUT_LIMITS, ALLOWED_AUDIO_EXTENSIONS, sanitizePlainText } from '../utils/validation';
 
 interface AudioRecorderProps {
   onSaveRecording: (recording: SavedRecording) => void;
@@ -71,10 +72,19 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onSaveRecording })
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!ALLOWED_AUDIO_EXTENSIONS.has(ext)) {
+      setRecorderError('Formato non supportato. Usa MP3, WAV, M4A, WebM o OGG.');
+      return;
+    }
+    if (file.size <= 0 || file.size > INPUT_LIMITS.DEMO_AUDIO_MAX_BYTES) {
+      setRecorderError('Il file audio non può superare 10 MB.');
+      return;
+    }
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     setRecordingTimeSec(10);
-    setExerciseName(file.name.replace(/\.[^/.]+$/, ''));
+    setExerciseName(sanitizePlainText(file.name.replace(/\.[^/.]+$/, ''), INPUT_LIMITS.RECORDING_NAME_MAX) || 'Registrazione Canto');
     setRecorderError(null);
     setIsMicBlocked(false);
   };
@@ -92,13 +102,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onSaveRecording })
   const handleSave = () => {
     if (!audioUrl) return;
 
+    const cleanTitle = sanitizePlainText(exerciseName, INPUT_LIMITS.RECORDING_NAME_MAX) || 'Registrazione Canto';
+    const cleanNote = sanitizePlainText(takeNote, INPUT_LIMITS.RECORDING_NOTE_MAX, true);
+
     const newRec: SavedRecording = {
       id: Date.now().toString(),
       date: new Date().toLocaleDateString('it-IT') + ' ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
-      exerciseTitle: exerciseName || 'Registrazione Canto',
+      exerciseTitle: cleanTitle,
       durationSeconds: recordingTimeSec,
       audioBlobUrl: audioUrl,
-      note: takeNote || 'Nessuna nota aggiuntiva.',
+      note: cleanNote || 'Nessuna nota aggiuntiva.',
     };
 
     onSaveRecording(newRec);
@@ -183,6 +196,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onSaveRecording })
           <div className="space-y-2 pt-2">
             <input
               type="text"
+              maxLength={INPUT_LIMITS.RECORDING_NAME_MAX}
               value={exerciseName}
               onChange={(e) => setExerciseName(e.target.value)}
               placeholder="Nome brano o esercizio..."
@@ -190,6 +204,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onSaveRecording })
             />
             <input
               type="text"
+              maxLength={INPUT_LIMITS.RECORDING_NOTE_MAX}
               value={takeNote}
               onChange={(e) => setTakeNote(e.target.value)}
               placeholder="Note personali (es. ottima risonanza sul Si3)..."

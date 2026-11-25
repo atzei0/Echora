@@ -6,10 +6,12 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
+  sendEmailVerification,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, googleProvider, db } from '../lib/firebase';
+import { auth, googleProvider, db, OperationType, handleFirestoreError } from '../lib/firebase';
 import {
   NoteNotation,
   PracticeSession,
@@ -19,6 +21,15 @@ import {
 } from '../types';
 import { useLanguage } from './LanguageContext';
 import { Language } from './i18n';
+import {
+  INPUT_LIMITS,
+  ALLOWED_VOCAL_LEVELS,
+  sanitizePlainText,
+  isValidEmail,
+  validateSignupPassword,
+  validatePersonName,
+  isSafeAvatarUrl,
+} from '../utils/validation';
 
 export interface UserAccount {
   id: string;
@@ -46,6 +57,22 @@ export interface UserAccount {
   role?: 'coach' | 'student';
   isCoach?: boolean;
 }
+
+interface ServerAuthState {
+  isCoach: boolean;
+  role: 'coach' | 'student';
+  isSubscribed: boolean;
+  subscriptionStatus: string;
+  subscriptionPlan?: string;
+  subscriptionPeriodEnd?: string;
+}
+
+const DEFAULT_SERVER_AUTH_STATE: ServerAuthState = {
+  isCoach: false,
+  role: 'student',
+  isSubscribed: false,
+  subscriptionStatus: 'inactive',
+};
 
 interface AuthContextType {
   user: UserAccount | null;
@@ -83,10 +110,12 @@ interface AuthContextType {
     customLastName?: string,
     googleEmail?: string
   ) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<void>;
+  refreshSubscriptionStatus: (forceTokenRefresh?: boolean) => Promise<void>;
   logout: () => void;
   updateUser: (updates: Partial<UserAccount>) => void;
-  sendConfirmationEmail: () => void;
-  verifyEmail: () => void;
+  sendConfirmationEmail: () => Promise<void>;
+  verifyEmail: () => Promise<boolean>;
   lastRegistrationNotification: string | null;
   clearRegistrationNotification: () => void;
   isSubscribed: boolean;
@@ -98,13 +127,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PRIVILEGED_STRIPE_KEYS = new Set([
+// Fields managed exclusively by the backend server (Admin SDK) and blocked from client writes
+const SERVER_ONLY_USER_KEYS = new Set([
   'subscriptionStatus',
   'subscriptionPlan',
   'subscriptionPeriodEnd',
+  'cancelAtPeriodEnd',
   'stripeCustomerId',
   'stripeSubscriptionId',
+  'pendingPlan',
+  'pendingPlanAmount',
+  'pendingPlanPaymentIntentId',
+  'pendingPlanStartsAt',
+  'pendingPlanInvoiceItemId',
+  'stripeScheduleId',
+  'lastStripeEventCreated',
+  'role',
+  'isCoach',
+  'emailVerified',
 ]);
+
+// Identity fields locked on client updates in Firestore rules
+const IMMUTABLE_IDENTITY_KEYS = new Set(['uid', 'email', 'createdAt']);
 
 export const createInitialBlankRoutine = (isEn: boolean, index = 1): SavedCustomRoutine => ({
   id: `custom_routine_${Date.now()}`,
@@ -125,15 +169,38 @@ function isDefaultEmptyRoutine(r: SavedCustomRoutine): boolean {
   );
 }
 
-function sanitizeForFirestore(data: Record<string, any>): Record<string, any> {
+function sanitizeForFirestore(data: Record<string, any>, isInitialCreate = false): Record<string, any> {
   const cleaned: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
-    if (PRIVILEGED_STRIPE_KEYS.has(key) || value === undefined) {
-      continue;
-    }
+    if (value === undefined) continue;
+    if (SERVER_ONLY_USER_KEYS.has(key)) continue;
+    if (!isInitialCreate && IMMUTABLE_IDENTITY_KEYS.has(key)) continue;
     cleaned[key] = JSON.parse(JSON.stringify(value));
   }
   return cleaned;
+}
+
+/**
+ * Strips privileged/authorization claims before writing any snapshot to browser storage,
+ * guaranteeing localStorage cannot be tampered with to elevate privileges or spoof subscriptions.
+ */
+function buildSafeLocalProfileSnapshot(acc: UserAccount): Partial<UserAccount> {
+  return {
+    id: acc.id,
+    name: acc.name,
+    firstName: acc.firstName,
+    lastName: acc.lastName,
+    email: acc.email,
+    provider: acc.provider,
+    avatarUrl: acc.avatarUrl,
+    vocalLevel: acc.vocalLevel,
+    createdAt: acc.createdAt,
+    preferredLanguage: acc.preferredLanguage,
+    preferredNotation: acc.preferredNotation,
+    confirmationEmailSent: acc.confirmationEmailSent,
+    xp: acc.xp,
+    streakDays: acc.streakDays,
+  };
 }
 
 function safeParseJSON<T>(raw: string | null, fallback: T): T {
@@ -147,14 +214,16 @@ function safeParseJSON<T>(raw: string | null, fallback: T): T {
 
 function filterValidUserRoutines(list: any): SavedCustomRoutine[] {
   if (!Array.isArray(list)) return [];
-  return list.filter(
-    (r) =>
-      r &&
-      typeof r.id === 'string' &&
-      !r.id.startsWith('preset_') &&
-      !r.id.includes('preset') &&
-      Array.isArray(r.steps)
-  );
+  return list
+    .filter(
+      (r) =>
+        r &&
+        typeof r.id === 'string' &&
+        !r.id.startsWith('preset_') &&
+        !r.id.includes('preset') &&
+        Array.isArray(r.steps)
+    )
+    .slice(0, 50);
 }
 
 function mergeCustomRoutines(
@@ -171,7 +240,6 @@ function mergeCustomRoutines(
 
   for (const list of localLists) {
     for (const r of filterValidUserRoutines(list)) {
-      // Avoid polluting existing cloud routines with an untouched blank placeholder routine
       if (hasCloudRoutines && isDefaultEmptyRoutine(r) && !map.has(r.id)) {
         continue;
       }
@@ -184,7 +252,7 @@ function mergeCustomRoutines(
     }
   }
 
-  return Array.from(map.values());
+  return Array.from(map.values()).slice(0, 50);
 }
 
 function mergePracticeSessions(
@@ -202,7 +270,7 @@ function mergePracticeSessions(
           date: item.date || new Date().toLocaleDateString('it-IT'),
           durationMinutes: Number(item.durationMinutes) || 0,
           exercisesCompleted: Array.isArray(item.exercisesCompleted) ? item.exercisesCompleted : [],
-          ...(item.notes ? { notes: item.notes } : {}),
+          ...(item.notes ? { notes: sanitizePlainText(item.notes, 300, true) } : {}),
         });
       }
     }
@@ -213,14 +281,16 @@ function mergePracticeSessions(
     addAll(list);
   }
 
-  return Array.from(map.values()).sort((a, b) => {
-    const numA = Number(a.id);
-    const numB = Number(b.id);
-    if (!Number.isNaN(numA) && !Number.isNaN(numB) && numA !== numB) {
-      return numB - numA;
-    }
-    return 0;
-  });
+  return Array.from(map.values())
+    .sort((a, b) => {
+      const numA = Number(a.id);
+      const numB = Number(b.id);
+      if (!Number.isNaN(numA) && !Number.isNaN(numB) && numA !== numB) {
+        return numB - numA;
+      }
+      return 0;
+    })
+    .slice(0, 500);
 }
 
 function clearUnscopedLocalKeys() {
@@ -250,20 +320,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { language, setLanguage } = useLanguage();
   const isEn = language === 'en';
 
+  // Local snapshot only provides UI profile fields (never authorization or subscription status)
   const [user, setUser] = useState<UserAccount | null>(() => {
     try {
       const saved = localStorage.getItem('echora_auth_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
-      if (parsed?.id?.startsWith('usr_')) {
+      if (!parsed?.id || parsed.id.startsWith('usr_')) {
         localStorage.removeItem('echora_auth_user');
         return null;
       }
-      return parsed;
+      return {
+        id: String(parsed.id),
+        name: sanitizePlainText(parsed.name || '', 160),
+        firstName: sanitizePlainText(parsed.firstName || '', INPUT_LIMITS.NAME_MAX),
+        lastName: sanitizePlainText(parsed.lastName || '', INPUT_LIMITS.NAME_MAX),
+        email: sanitizePlainText(parsed.email || '', INPUT_LIMITS.EMAIL_MAX),
+        provider: parsed.provider === 'google' ? 'google' : 'email',
+        avatarUrl: isSafeAvatarUrl(parsed.avatarUrl) ? parsed.avatarUrl : undefined,
+        vocalLevel: sanitizePlainText(parsed.vocalLevel || 'Allievo / Cantante', INPUT_LIMITS.VOCAL_LEVEL_MAX),
+        createdAt: sanitizePlainText(parsed.createdAt || '', 64),
+        emailVerified: false,
+        confirmationEmailSent: Boolean(parsed.confirmationEmailSent),
+        xp: typeof parsed.xp === 'number' ? parsed.xp : 150,
+        streakDays: typeof parsed.streakDays === 'number' ? parsed.streakDays : 1,
+        preferredLanguage: parsed.preferredLanguage === 'en' ? 'en' : 'it',
+        preferredNotation: parsed.preferredNotation === 'scientific' ? 'scientific' : 'latin',
+        role: 'student',
+        isCoach: false,
+        subscriptionStatus: 'inactive',
+      };
     } catch {
       return null;
     }
   });
+
+  // Authoritative server-verified state — ONLY mutated by verified `/api/subscription-status` responses
+  const [serverAuthState, setServerAuthState] = useState<ServerAuthState>(DEFAULT_SERVER_AUTH_STATE);
 
   const [isCloudHydrated, setIsCloudHydrated] = useState<boolean>(false);
   const isCloudHydratedRef = useRef<boolean>(false);
@@ -328,7 +421,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 'latin';
   });
 
-  // Voice recordings remain strictly local (not synced to Firestore per Rule 9), scoped per user
   const [recordings, setRecordings] = useState<SavedRecording[]>(() => {
     if (initialUid) {
       const scoped = safeParseJSON<SavedRecording[] | null>(
@@ -357,51 +449,111 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriptionModalMessage(null);
   };
 
-  const isAuthorizedCoachIdentity = Boolean(
-    user && (
-      user.role === 'coach' ||
-      user.isCoach === true ||
-      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
-      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
-    )
-  );
+  // Strictly server-verified role & subscription flags (zero client-side or localhost bypasses)
+  const isCoach = serverAuthState.isCoach;
+  const role: 'coach' | 'student' = serverAuthState.role;
+  const isSubscribed = Boolean(serverAuthState.isCoach || serverAuthState.isSubscribed);
 
-  const isCoach = isAuthorizedCoachIdentity;
-  const role: 'coach' | 'student' = isCoach ? 'coach' : 'student';
-
-  // L'account coach autorizzato (francesca.atzei0@gmail.com) ha accesso completo e illimitato
-  // a tutte le sezioni e funzionalità di Echora senza dover sottoscrivere alcun abbonamento.
-  // I limiti dei piani e degli abbonamenti continuano ad applicarsi rigorosamente ed esclusivamente agli allievi.
-  const isSubscribed = Boolean(
-    isCoach ||
-    user?.subscriptionStatus === 'active' ||
-    user?.subscriptionStatus === 'trialing' ||
-    (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-  );
-
-  // Helper to write partial updates to Firestore `/users/{uid}` and update local cache
-  const writeUserFieldsToFirestore = async (uid: string, fields: Record<string, any>) => {
-    if (!uid || !db) return;
+  const fetchVerifiedServerStatus = async (fbUser: FirebaseUser, forceRefresh = false): Promise<ServerAuthState> => {
     try {
-      const userRef = doc(db, 'users', uid);
-      const payload = sanitizeForFirestore({
-        ...fields,
-        updatedAt: new Date().toISOString(),
+      const idToken = await fbUser.getIdToken(forceRefresh);
+      if (!idToken) {
+        return DEFAULT_SERVER_AUTH_STATE;
+      }
+      const res = await fetch('/api/subscription-status', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
       });
-      await setDoc(userRef, payload, { merge: true });
-    } catch (err) {
-      console.warn('Firestore write warning:', err);
+      if (!res.ok) {
+        return DEFAULT_SERVER_AUTH_STATE;
+      }
+      const data = await res.json();
+      const verifiedCoach = Boolean(data?.isCoach === true && data?.role === 'coach');
+      const status = typeof data?.subscriptionStatus === 'string' ? data.subscriptionStatus : 'inactive';
+      const activePremium = Boolean(
+        verifiedCoach ||
+        data?.isPremium === true ||
+        status === 'active' ||
+        status === 'trialing'
+      );
+      return {
+        isCoach: verifiedCoach,
+        role: verifiedCoach ? 'coach' : 'student',
+        isSubscribed: activePremium,
+        subscriptionStatus: verifiedCoach ? 'active' : status,
+        subscriptionPlan: verifiedCoach
+          ? 'coach_unlimited'
+          : typeof data?.subscriptionPlan === 'string'
+            ? data.subscriptionPlan
+            : undefined,
+        subscriptionPeriodEnd: verifiedCoach
+          ? '2099-12-31T23:59:59.000Z'
+          : typeof data?.subscriptionPeriodEnd === 'string'
+            ? data.subscriptionPeriodEnd
+            : undefined,
+      };
+    } catch {
+      return DEFAULT_SERVER_AUTH_STATE;
     }
   };
 
-  // Save full user snapshot to localStorage cache
+  const refreshSubscriptionStatus = async (forceTokenRefresh = false) => {
+    const fbUser = auth.currentUser;
+    if (!fbUser) {
+      setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
+      return;
+    }
+    const nextState = await fetchVerifiedServerStatus(fbUser, forceTokenRefresh);
+    setServerAuthState(nextState);
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            role: nextState.role,
+            isCoach: nextState.isCoach,
+            emailVerified: fbUser.emailVerified,
+            vocalLevel: nextState.isCoach ? 'Insegnante / Vocal Coach' : prev.vocalLevel,
+            subscriptionStatus: nextState.subscriptionStatus,
+            subscriptionPlan: nextState.subscriptionPlan,
+            subscriptionPeriodEnd: nextState.subscriptionPeriodEnd,
+          }
+        : prev
+    );
+  };
+
+  // Write non-privileged partial updates to Firestore `/users/{uid}`
+  const writeUserFieldsToFirestore = async (
+    uid: string,
+    fields: Record<string, any>,
+    isInitialCreate = false
+  ) => {
+    if (!uid || !db) return;
+    try {
+      const userRef = doc(db, 'users', uid);
+      const payload = sanitizeForFirestore(
+        {
+          ...fields,
+          updatedAt: new Date().toISOString(),
+        },
+        isInitialCreate
+      );
+      if (Object.keys(payload).length === 0) return;
+      await setDoc(userRef, payload, isInitialCreate ? undefined : { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    }
+  };
+
+  // Save ONLY non-privileged profile fields to localStorage cache
   const cacheUserSnapshotLocally = (acc: UserAccount) => {
     setUser(acc);
     try {
-      localStorage.setItem('echora_auth_user', JSON.stringify(acc));
+      const safeSnapshot = buildSafeLocalProfileSnapshot(acc);
+      localStorage.setItem('echora_auth_user', JSON.stringify(safeSnapshot));
       if (acc.id) {
         const keys = getScopedKeys(acc.id);
-        localStorage.setItem(keys.user, JSON.stringify(acc));
+        localStorage.setItem(keys.user, JSON.stringify(safeSnapshot));
         localStorage.setItem('echora_last_uid', acc.id);
       }
     } catch (e) {
@@ -426,11 +578,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const uid = fbUser.uid;
     const scopedKeys = getScopedKeys(uid);
 
-    // Determine if legacy unscoped keys on this browser can be migrated to this UID
     const lastUid = localStorage.getItem('echora_last_uid');
     const canMigrateUnscoped = !lastUid || lastUid === uid;
 
-    // Read UID-scoped local cache
     const scopedProfile = safeParseJSON<VocalRangeProfile | null>(
       localStorage.getItem(scopedKeys.profile),
       null
@@ -450,7 +600,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const scopedLang = localStorage.getItem(scopedKeys.language) as Language | null;
     const scopedNotation = localStorage.getItem(scopedKeys.notation) as NoteNotation | null;
 
-    // Read legacy unscoped local data only if eligible for migration
     const legacyProfile = canMigrateUnscoped
       ? safeParseJSON<VocalRangeProfile | null>(localStorage.getItem('vocalis_profile'), null)
       : null;
@@ -469,21 +618,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? safeParseJSON<SavedRecording[]>(localStorage.getItem('vocalis_recordings'), [])
       : [];
 
-    // Fetch existing Firestore document
     let cloudData: Record<string, any> | null = null;
+    let cloudDocExists = false;
     try {
       if (db) {
         const userRef = doc(db, 'users', uid);
         const snap = await getDoc(userRef);
         if (snap.exists()) {
+          cloudDocExists = true;
           cloudData = snap.data();
         }
       }
     } catch (err) {
-      console.warn('Error reading user profile from Firestore:', err);
+      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
     }
 
-    // Merge local recordings (kept local only per Rule 9, isolated per UID)
     const recordingsMap = new Map<string, SavedRecording>();
     for (const rec of [...scopedRecordings, ...legacyRecordings]) {
       if (rec && rec.id && !recordingsMap.has(rec.id)) {
@@ -492,18 +641,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const mergedRecordings = Array.from(recordingsMap.values());
 
-    // 1. Merge vocalProfile (Firestore is primary source of truth, fallback to local for migration)
     const mergedVocalProfile: VocalRangeProfile | null =
       cloudData?.vocalProfile || scopedProfile || legacyProfile || null;
 
-    // 2. Merge practiceSessions by ID
     const mergedSessions = mergePracticeSessions(
       Array.isArray(cloudData?.practiceSessions) ? cloudData.practiceSessions : [],
       scopedSessions,
       legacySessions
     );
 
-    // 3. Merge customRoutines by ID (most recent updatedAt wins)
     const mergedRoutinesRaw = mergeCustomRoutines(
       Array.isArray(cloudData?.customRoutines) ? cloudData.customRoutines : [],
       scopedRoutines,
@@ -514,14 +660,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? mergedRoutinesRaw
         : [createInitialBlankRoutine(language === 'en')];
 
-    // 4. Determine activeCustomRoutineId
     const candidateActiveId =
       cloudData?.activeCustomRoutineId || scopedActiveRoutineId || legacyActiveRoutineId || '';
     const mergedActiveRoutineId = mergedRoutines.some((r) => r.id === candidateActiveId)
       ? candidateActiveId
       : mergedRoutines[0]?.id || '';
 
-    // 5. Preferences (preferredLanguage & preferredNotation)
     const mergedLanguage: Language =
       cloudData?.preferredLanguage === 'en' || cloudData?.preferredLanguage === 'it'
         ? cloudData.preferredLanguage
@@ -536,7 +680,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? scopedNotation
           : preferredNotation;
 
-    // 6. Identity fields
     const isGoogle =
       hints?.provider === 'google' ||
       cloudData?.provider === 'google' ||
@@ -547,56 +690,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fbUser.displayName ||
       `${hints?.firstName || 'Utente'} ${hints?.lastName || 'Echora'}`.trim();
     const fallbackParts = fallbackFullName.split(' ');
-    const firstName =
-      cloudData?.firstName || hints?.firstName || fallbackParts[0] || 'Utente';
-    const lastName =
+    const firstName = sanitizePlainText(
+      cloudData?.firstName || hints?.firstName || fallbackParts[0] || 'Utente',
+      INPUT_LIMITS.NAME_MAX
+    );
+    const lastName = sanitizePlainText(
       cloudData?.lastName !== undefined
         ? cloudData.lastName
         : hints?.lastName !== undefined
           ? hints.lastName
-          : fallbackParts.slice(1).join(' ') || '';
-    const fullName =
-      cloudData?.name || `${firstName} ${lastName}`.trim() || fallbackFullName;
-
-    // Server-side verification of subscription status and Coach role authorization
-    let serverVerification: any = null;
-    try {
-      const idToken = await fbUser.getIdToken();
-      if (idToken) {
-        const res = await fetch(`/api/subscription-status?userId=${encodeURIComponent(uid)}`, {
-          headers: {
-            'Authorization': `Bearer ${idToken}`,
-          },
-        });
-        if (res.ok) {
-          serverVerification = await res.json();
-        }
-      }
-    } catch (err) {
-      console.warn('Verifica abbonamento server-side fallback:', err);
-    }
-
-    const isCoachIdentified = Boolean(
-      serverVerification?.isCoach ||
-      serverVerification?.role === 'coach' ||
-      (fbUser.email && fbUser.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
-      (cloudData?.email && cloudData.email.toLowerCase() === 'francesca.atzei0@gmail.com')
+          : fallbackParts.slice(1).join(' ') || '',
+      INPUT_LIMITS.NAME_MAX
     );
+    const fullName = sanitizePlainText(
+      cloudData?.name || `${firstName} ${lastName}`.trim() || fallbackFullName,
+      160
+    );
+
+    // Server-side cryptographic verification of subscription status & Coach authorization
+    const verifiedServer = await fetchVerifiedServerStatus(fbUser, false);
+    setServerAuthState(verifiedServer);
+
+    const safeEmail = fbUser.email || cloudData?.email || hints?.email || '';
+    const safeAvatar = isSafeAvatarUrl(cloudData?.avatarUrl)
+      ? cloudData?.avatarUrl
+      : isSafeAvatarUrl(fbUser.photoURL)
+        ? fbUser.photoURL || undefined
+        : undefined;
+
+    const rawVocalLevel = cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante';
+    const safeVocalLevel = verifiedServer.isCoach
+      ? 'Insegnante / Vocal Coach'
+      : ALLOWED_VOCAL_LEVELS.has(rawVocalLevel)
+        ? rawVocalLevel
+        : 'Allievo / Cantante';
 
     const profile: UserAccount = {
       id: uid,
       name: fullName,
       firstName,
       lastName,
-      email: cloudData?.email || fbUser.email || hints?.email || '',
+      email: safeEmail,
       provider,
-      avatarUrl: cloudData?.avatarUrl || fbUser.photoURL || undefined,
-      vocalLevel: isCoachIdentified ? 'Insegnante / Vocal Coach' : (cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante'),
-      role: isCoachIdentified ? 'coach' : 'student',
-      isCoach: isCoachIdentified,
+      avatarUrl: safeAvatar,
+      vocalLevel: safeVocalLevel,
+      role: verifiedServer.role,
+      isCoach: verifiedServer.isCoach,
       createdAt: cloudData?.createdAt || new Date().toLocaleDateString('it-IT'),
-      emailVerified: fbUser.emailVerified || Boolean(cloudData?.emailVerified),
-      confirmationEmailSent: true,
+      emailVerified: fbUser.emailVerified,
+      confirmationEmailSent: Boolean(cloudData?.confirmationEmailSent ?? fbUser.emailVerified),
       xp: isGoogle ? 250 : 150,
       streakDays: isGoogle ? 2 : 1,
       vocalProfile: mergedVocalProfile,
@@ -605,18 +747,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       practiceSessions: mergedSessions,
       preferredLanguage: mergedLanguage,
       preferredNotation: mergedNotation,
-      subscriptionStatus: isCoachIdentified
-        ? 'active'
-        : (serverVerification?.subscriptionStatus || cloudData?.subscriptionStatus || 'inactive'),
-      subscriptionPlan: isCoachIdentified
-        ? 'coach_unlimited'
-        : (serverVerification?.subscriptionPlan || cloudData?.subscriptionPlan || undefined),
-      subscriptionPeriodEnd: isCoachIdentified
-        ? '2099-12-31T23:59:59.000Z'
-        : (serverVerification?.subscriptionPeriodEnd || cloudData?.subscriptionPeriodEnd || undefined),
+      subscriptionStatus: verifiedServer.subscriptionStatus,
+      subscriptionPlan: verifiedServer.subscriptionPlan,
+      subscriptionPeriodEnd: verifiedServer.subscriptionPeriodEnd,
     };
 
-    // Update React states
     setVocalProfile(mergedVocalProfile);
     setSessions(mergedSessions);
     setCustomRoutines(mergedRoutines);
@@ -632,7 +767,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 0);
     }
 
-    // Persist to UID-scoped localStorage cache and remove unscoped legacy keys
     try {
       if (mergedVocalProfile) {
         localStorage.setItem(scopedKeys.profile, JSON.stringify(mergedVocalProfile));
@@ -649,40 +783,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error writing UID-scoped local cache:', e);
     }
 
-    // Clean up unscoped keys so another user on the same browser never sees them
     clearUnscopedLocalKeys();
     cacheUserSnapshotLocally(profile);
 
-    // Mark hydration complete
     isCloudHydratedRef.current = true;
     setIsCloudHydrated(true);
 
-    // Write full synchronized non-Stripe profile & progress back to Firestore
-    await writeUserFieldsToFirestore(uid, {
-      uid: profile.id,
-      name: profile.name,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      email: profile.email,
-      role: profile.role,
-      isCoach: profile.isCoach,
-      provider: profile.provider,
-      avatarUrl: profile.avatarUrl || '',
-      vocalLevel: profile.vocalLevel || (profile.isCoach ? 'Insegnante / Vocal Coach' : 'Allievo / Cantante'),
-      createdAt: profile.createdAt,
-      emailVerified: profile.emailVerified,
-      vocalProfile: profile.vocalProfile,
-      customRoutines: profile.customRoutines,
-      activeCustomRoutineId: profile.activeCustomRoutineId,
-      practiceSessions: profile.practiceSessions,
-      preferredLanguage: profile.preferredLanguage,
-      preferredNotation: profile.preferredNotation,
-    });
+    // Sync non-privileged profile & progress fields to Firestore
+    if (!cloudDocExists) {
+      await writeUserFieldsToFirestore(
+        uid,
+        {
+          uid: profile.id,
+          email: fbUser.email || '',
+          createdAt: profile.createdAt,
+          name: profile.name,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          provider: profile.provider,
+          avatarUrl: profile.avatarUrl || '',
+          vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
+          vocalProfile: profile.vocalProfile,
+          customRoutines: profile.customRoutines,
+          activeCustomRoutineId: profile.activeCustomRoutineId,
+          practiceSessions: profile.practiceSessions,
+          preferredLanguage: profile.preferredLanguage,
+          preferredNotation: profile.preferredNotation,
+          confirmationEmailSent: profile.confirmationEmailSent,
+        },
+        true
+      );
+    } else {
+      await writeUserFieldsToFirestore(
+        uid,
+        {
+          name: profile.name,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          provider: profile.provider,
+          avatarUrl: profile.avatarUrl || '',
+          vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
+          vocalProfile: profile.vocalProfile,
+          customRoutines: profile.customRoutines,
+          activeCustomRoutineId: profile.activeCustomRoutineId,
+          practiceSessions: profile.practiceSessions,
+          preferredLanguage: profile.preferredLanguage,
+          preferredNotation: profile.preferredNotation,
+        },
+        false
+      );
+    }
 
     return profile;
   };
 
-  // Listen to Firebase auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
       if (fbUser) {
@@ -690,6 +844,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         isCloudHydratedRef.current = false;
         setIsCloudHydrated(false);
+        setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
         setUser(null);
         setVocalProfile(null);
         setSessions([]);
@@ -709,7 +864,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  // Sync preferredLanguage to Firestore when user changes language in UI after hydration
   useEffect(() => {
     if (!user?.id || !isCloudHydratedRef.current || isHydratingLanguageRef.current) return;
     if (user.preferredLanguage === language) return;
@@ -727,7 +881,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     writeUserFieldsToFirestore(user.id, { preferredLanguage: language });
   }, [language]);
 
-  // 1. Save Vocal Profile (Range Test result)
   const saveVocalProfile = (profile: VocalRangeProfile) => {
     setVocalProfile(profile);
     if (user?.id) {
@@ -757,17 +910,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 2. Record Completed Exercise / Practice Session
   const recordExerciseCompletion = (title: string, durationSec: number) => {
-    const mins = durationSec / 60;
+    const safeTitle = sanitizePlainText(title, 120) || 'Esercizio Vocale';
+    const safeDuration = Math.max(0, Math.min(36000, Number(durationSec) || 0));
+    const mins = safeDuration / 60;
     const newSession: PracticeSession = {
       id: Date.now().toString(),
       date: new Date().toLocaleDateString('it-IT'),
       durationMinutes: mins,
-      exercisesCompleted: [title],
+      exercisesCompleted: [safeTitle],
     };
 
-    const updatedSessions = [newSession, ...sessions];
+    const updatedSessions = [newSession, ...sessions].slice(0, 500);
     setSessions(updatedSessions);
 
     if (user?.id) {
@@ -797,7 +951,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 3. Save Custom Routines & Active Custom Routine ID
   const saveCustomRoutines = (routines: SavedCustomRoutine[], activeId?: string) => {
     const cleanRoutines = filterValidUserRoutines(routines);
     const finalRoutines =
@@ -843,33 +996,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 4. Update Active Custom Routine ID
   const setActiveCustomRoutineId = (id: string) => {
-    setActiveCustomRoutineIdState(id);
+    const safeId = sanitizePlainText(id, 128);
+    setActiveCustomRoutineIdState(safeId);
     if (user?.id) {
       const scopedKeys = getScopedKeys(user.id);
       try {
-        localStorage.setItem(scopedKeys.activeRoutineId, id);
+        localStorage.setItem(scopedKeys.activeRoutineId, safeId);
       } catch {}
 
       if (!isCloudHydratedRef.current) return;
 
       const updatedUser: UserAccount = {
         ...user,
-        activeCustomRoutineId: id,
+        activeCustomRoutineId: safeId,
       };
       cacheUserSnapshotLocally(updatedUser);
       writeUserFieldsToFirestore(user.id, {
-        activeCustomRoutineId: id,
+        activeCustomRoutineId: safeId,
       });
     } else {
       try {
-        localStorage.setItem('echora_active_custom_routine_id', id);
+        localStorage.setItem('echora_active_custom_routine_id', safeId);
       } catch {}
     }
   };
 
-  // 5. Save Preferred Notation
   const setPreferredNotation = (notation: NoteNotation) => {
     setPreferredNotationState(notation);
     if (user?.id) {
@@ -895,9 +1047,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 6. Local-only voice recordings (Rule 9: not synced to Firestore, isolated per user)
   const saveRecording = (rec: SavedRecording) => {
-    const updated = [rec, ...recordings];
+    const sanitizedRec: SavedRecording = {
+      ...rec,
+      exerciseTitle: sanitizePlainText(rec.exerciseTitle, INPUT_LIMITS.RECORDING_NAME_MAX) || 'Registrazione Canto',
+      note: sanitizePlainText(rec.note || '', INPUT_LIMITS.RECORDING_NOTE_MAX, true),
+    };
+    const updated = [sanitizedRec, ...recordings];
     setRecordings(updated);
     if (user?.id) {
       const scopedKeys = getScopedKeys(user.id);
@@ -945,20 +1101,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUser = (updates: Partial<UserAccount>) => {
     if (!user) return;
-    const newFirstName = updates.firstName !== undefined ? updates.firstName : user.firstName;
-    const newLastName = updates.lastName !== undefined ? updates.lastName : user.lastName;
-    const computedName = `${newFirstName} ${newLastName}`.trim() || user.name;
+
+    // Filter out privileged & immutable fields so clients can never alter role/subscription/email
+    const safeUpdates: Record<string, any> = {};
+    if (updates.firstName !== undefined) {
+      const res = validatePersonName(updates.firstName, 'Nome');
+      if (res.valid) safeUpdates.firstName = res.cleaned;
+    }
+    if (updates.lastName !== undefined) {
+      const res = validatePersonName(updates.lastName, 'Cognome');
+      if (res.valid) safeUpdates.lastName = res.cleaned;
+    }
+    if (updates.avatarUrl !== undefined && isSafeAvatarUrl(updates.avatarUrl)) {
+      safeUpdates.avatarUrl = updates.avatarUrl;
+    }
+    if (updates.vocalLevel !== undefined && !serverAuthState.isCoach) {
+      const lvl = sanitizePlainText(updates.vocalLevel, INPUT_LIMITS.VOCAL_LEVEL_MAX);
+      if (ALLOWED_VOCAL_LEVELS.has(lvl)) {
+        safeUpdates.vocalLevel = lvl;
+      }
+    }
+    if (updates.confirmationEmailSent !== undefined) {
+      safeUpdates.confirmationEmailSent = Boolean(updates.confirmationEmailSent);
+    }
+
+    const newFirstName = safeUpdates.firstName !== undefined ? safeUpdates.firstName : user.firstName;
+    const newLastName = safeUpdates.lastName !== undefined ? safeUpdates.lastName : user.lastName;
+    const computedName = sanitizePlainText(`${newFirstName} ${newLastName}`, 160) || user.name;
 
     const updated: UserAccount = {
       ...user,
-      ...updates,
+      ...safeUpdates,
+      firstName: newFirstName,
+      lastName: newLastName,
       name: computedName,
     };
     cacheUserSnapshotLocally(updated);
 
     if (user.id && isCloudHydratedRef.current) {
       writeUserFieldsToFirestore(user.id, {
-        ...updates,
+        ...safeUpdates,
         firstName: newFirstName,
         lastName: newLastName,
         name: computedName,
@@ -966,20 +1148,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const sendConfirmationEmail = () => {
-    if (!user) return;
-    updateUser({ confirmationEmailSent: true });
-    setLastRegistrationNotification(
-      `Un'email di verifica è stata inviata a ${user.email}! Clicca sul link nell'email per confermare il tuo account.`
-    );
+  const sendConfirmationEmail = async () => {
+    const fbUser = auth.currentUser;
+    if (!fbUser || !user) return;
+    if (fbUser.emailVerified) {
+      setLastRegistrationNotification('Il tuo indirizzo email è già verificato.');
+      return;
+    }
+    try {
+      await sendEmailVerification(fbUser);
+      updateUser({ confirmationEmailSent: true });
+      setLastRegistrationNotification(
+        `Email di verifica inviata a ${fbUser.email || user.email}. Clicca sul link ricevuto nella tua casella di posta e poi premi "Ho verificato".`
+      );
+    } catch (err: any) {
+      if (err?.code === 'auth/too-many-requests') {
+        setLastRegistrationNotification('Email di verifica già inviata di recente. Attendi qualche minuto prima di richiederne un\'altra.');
+      } else {
+        setLastRegistrationNotification('Impossibile inviare l\'email di verifica al momento. Riprova tra poco.');
+      }
+    }
   };
 
-  const verifyEmail = () => {
-    if (!user) return;
-    updateUser({ emailVerified: true, confirmationEmailSent: true });
-    setLastRegistrationNotification(
-      `Email ${user.email} confermata con successo! Il tuo account Echora è ora verificato.`
-    );
+  const verifyEmail = async (): Promise<boolean> => {
+    const fbUser = auth.currentUser;
+    if (!fbUser || !user) return false;
+    try {
+      await fbUser.reload();
+      if (fbUser.emailVerified) {
+        await fbUser.getIdToken(true);
+        await refreshSubscriptionStatus(true);
+        setLastRegistrationNotification(
+          `Email ${fbUser.email || user.email} verificata con successo!`
+        );
+        return true;
+      } else {
+        setLastRegistrationNotification(
+          `L'email ${fbUser.email || user.email} non risulta ancora confermata. Apri il link nell'email ricevuta da Firebase e riprova.`
+        );
+        return false;
+      }
+    } catch {
+      return false;
+    }
   };
 
   const clearRegistrationNotification = () => {
@@ -987,18 +1198,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithEmail = async (email: string, pass: string): Promise<boolean> => {
+    const cleanEmail = sanitizePlainText(email, INPUT_LIMITS.EMAIL_MAX).toLowerCase();
+    if (!isValidEmail(cleanEmail) || !pass) {
+      throw new Error('Inserisci un indirizzo email e una password validi.');
+    }
+
     try {
-      const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
+      const res = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       const fbUser = res.user;
 
-      const parts = email.split('@')[0].split('.');
+      const parts = cleanEmail.split('@')[0].split('.');
       const first = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Cantante';
       const last = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : 'Echora';
 
       await hydrateAndSyncUser(fbUser, {
         firstName: first,
         lastName: last,
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         provider: 'email',
       });
       closeAuthModal();
@@ -1016,25 +1232,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastName: string,
     vocalLevel: string = 'Allievo / Cantante'
   ): Promise<boolean> => {
-    const cleanFirst = firstName.trim() || 'Allievo';
-    const cleanLast = lastName.trim() || 'Echora';
-    const cleanEmail = email.trim().toLowerCase();
-    const fullName = `${cleanFirst} ${cleanLast}`;
+    const cleanEmail = sanitizePlainText(email, INPUT_LIMITS.EMAIL_MAX).toLowerCase();
+    if (!isValidEmail(cleanEmail)) {
+      throw new Error('Indirizzo email non valido.');
+    }
+    const passCheck = validateSignupPassword(pass);
+    if (!passCheck.valid) {
+      throw new Error(passCheck.error || 'Password non valida.');
+    }
+    const firstCheck = validatePersonName(firstName, 'Nome');
+    if (!firstCheck.valid) {
+      throw new Error(firstCheck.error || 'Nome non valido.');
+    }
+    const lastCheck = validatePersonName(lastName, 'Cognome');
+    if (!lastCheck.valid) {
+      throw new Error(lastCheck.error || 'Cognome non valido.');
+    }
+
+    const safeVocalLevel = ALLOWED_VOCAL_LEVELS.has(vocalLevel) ? vocalLevel : 'Allievo / Cantante';
+    const fullName = `${firstCheck.cleaned} ${lastCheck.cleaned}`;
 
     try {
       const res = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       const fbUser = res.user;
       await updateProfile(fbUser, { displayName: fullName });
+      await sendEmailVerification(fbUser).catch(() => null);
 
       await hydrateAndSyncUser(fbUser, {
-        firstName: cleanFirst,
-        lastName: cleanLast,
+        firstName: firstCheck.cleaned,
+        lastName: lastCheck.cleaned,
         email: cleanEmail,
-        vocalLevel,
+        vocalLevel: safeVocalLevel,
         provider: 'email',
       });
       setLastRegistrationNotification(
-        `🎉 Account creato con successo su Firebase! Abbiamo registrato ${cleanEmail}.`
+        `Account creato con successo! Ti abbiamo inviato un'email di verifica all'indirizzo ${cleanEmail}.`
       );
       closeAuthModal();
       return true;
@@ -1042,6 +1274,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Firebase signup error:', err);
       throw err;
     }
+  };
+
+  const resetPassword = async (email: string): Promise<void> => {
+    const cleanEmail = sanitizePlainText(email, INPUT_LIMITS.EMAIL_MAX).toLowerCase();
+    if (!isValidEmail(cleanEmail)) {
+      throw new Error('Inserisci un indirizzo email valido.');
+    }
+    await sendPasswordResetEmail(auth, cleanEmail);
   };
 
   const loginWithGoogle = async (
@@ -1057,8 +1297,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const fullName =
         fbUser.displayName || `${customFirstName || 'Utente'} ${customLastName || 'Google'}`.trim();
       const parts = fullName.split(' ');
-      const first = customFirstName?.trim() || parts[0] || 'Utente';
-      const last = customLastName?.trim() || parts.slice(1).join(' ') || '';
+      const first = sanitizePlainText(customFirstName || parts[0] || 'Utente', INPUT_LIMITS.NAME_MAX);
+      const last = sanitizePlainText(customLastName || parts.slice(1).join(' ') || '', INPUT_LIMITS.NAME_MAX);
 
       const profile = await hydrateAndSyncUser(fbUser, {
         firstName: first,
@@ -1068,7 +1308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setLastRegistrationNotification(
-        `Autenticazione Google Firebase completata con successo per ${profile.name}! Account salvato.`
+        `Autenticazione Google completata con successo per ${profile.name}!`
       );
       closeAuthModal();
       return true;
@@ -1081,6 +1321,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     isCloudHydratedRef.current = false;
     setIsCloudHydrated(false);
+    setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
     try {
       await signOut(auth);
     } catch (e) {
@@ -1130,6 +1371,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithEmail,
         signupWithEmail,
         loginWithGoogle,
+        resetPassword,
+        refreshSubscriptionStatus,
         logout,
         updateUser,
         sendConfirmationEmail,

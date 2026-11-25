@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, LogIn, UserPlus, LogOut, CheckCircle2 } from 'lucide-react';
+import { X, Mail, Lock, User, LogIn, UserPlus, LogOut, CheckCircle2, KeyRound, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  INPUT_LIMITS,
+  ALLOWED_VOCAL_LEVELS,
+  sanitizePlainText,
+  isValidEmail,
+  validateSignupPassword,
+  validatePersonName,
+} from '../utils/validation';
 
 interface AuthModalProps {
   onNavigateToProfile?: () => void;
@@ -16,6 +24,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
     loginWithEmail,
     signupWithEmail,
     loginWithGoogle,
+    resetPassword,
     logout,
   } = useAuth();
 
@@ -24,37 +33,82 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [vocalLevel, setVocalLevel] = useState('Allievo / Cantante');
+  const [isResetMode, setIsResetMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
 
   if (!isAuthModalOpen) return null;
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setInfoMsg('');
+
+    const cleanEmail = sanitizePlainText(email, INPUT_LIMITS.EMAIL_MAX).toLowerCase();
+    if (!isValidEmail(cleanEmail)) {
+      setErrorMsg('Inserisci un indirizzo email valido.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await resetPassword(cleanEmail);
+      setInfoMsg('Se l\'indirizzo email è registrato, riceverai a breve un link per reimpostare la password.');
+    } catch (err: any) {
+      if (err?.code === 'auth/too-many-requests') {
+        setErrorMsg('Troppi tentativi. Attendi qualche minuto prima di riprovare.');
+      } else {
+        // Generic message so account existence is not leaked
+        setInfoMsg('Se l\'indirizzo email è registrato, riceverai a breve un link per reimpostare la password.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmitEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setInfoMsg('');
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMsg('Inserisci email e password');
+    const cleanEmail = sanitizePlainText(email, INPUT_LIMITS.EMAIL_MAX).toLowerCase();
+    if (!isValidEmail(cleanEmail) || !password) {
+      setErrorMsg('Inserisci un indirizzo email valido e la password.');
       return;
     }
 
-    if (authMode === 'signup' && (!firstName.trim() || !lastName.trim())) {
-      setErrorMsg('Inserisci sia il Nome che il Cognome');
-      return;
+    if (authMode === 'signup') {
+      const firstRes = validatePersonName(firstName, 'Nome');
+      if (!firstRes.valid) {
+        setErrorMsg(firstRes.error || 'Inserisci un nome valido.');
+        return;
+      }
+      const lastRes = validatePersonName(lastName, 'Cognome');
+      if (!lastRes.valid) {
+        setErrorMsg(lastRes.error || 'Inserisci un cognome valido.');
+        return;
+      }
+      const passRes = validateSignupPassword(password);
+      if (!passRes.valid) {
+        setErrorMsg(passRes.error || 'Password non valida.');
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
       if (authMode === 'login') {
-        await loginWithEmail(email, password);
+        await loginWithEmail(cleanEmail, password);
       } else {
+        const safeVocalLevel = ALLOWED_VOCAL_LEVELS.has(vocalLevel) ? vocalLevel : 'Allievo / Cantante';
         await signupWithEmail(
-          email,
+          cleanEmail,
           password,
           firstName,
           lastName,
-          vocalLevel
+          safeVocalLevel
         );
       }
 
@@ -69,11 +123,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
       } else if (code === 'auth/email-already-in-use') {
         setErrorMsg('Questa email è già registrata. Prova ad accedere con "Accedi".');
       } else if (code === 'auth/weak-password') {
-        setErrorMsg('La password deve essere di almeno 6 caratteri.');
+        setErrorMsg('La password deve contenere almeno 8 caratteri, con lettere e numeri.');
       } else if (code === 'auth/invalid-email') {
         setErrorMsg('Formato email non valido.');
+      } else if (code === 'auth/too-many-requests') {
+        setErrorMsg('Troppi tentativi falliti. Attendi qualche minuto prima di riprovare.');
       } else {
-        setErrorMsg(err?.message || 'Errore durante l\'autenticazione');
+        setErrorMsg(err?.message || 'Errore durante l\'autenticazione.');
       }
     } finally {
       setIsLoading(false);
@@ -83,6 +139,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
   const handleDirectGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMsg('');
+    setInfoMsg('');
 
     try {
       await loginWithGoogle();
@@ -102,11 +159,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
       } else if (error.code === 'auth/unauthorized-domain') {
         setErrorMsg('Questo dominio non è autorizzato da Firebase.');
       } else {
-        setErrorMsg(
-          error.message
-            ? `Errore Google: ${error.message}`
-            : 'Errore durante l\'accesso con Google.'
-        );
+        setErrorMsg('Errore durante l\'accesso con Google. Riprova tra poco.');
       }
     } finally {
       setIsLoading(false);
@@ -183,6 +236,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
               <span>Disconnettiti</span>
             </button>
           </div>
+        ) : isResetMode ? (
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetMode(false);
+                  setErrorMsg('');
+                  setInfoMsg('');
+                }}
+                className="inline-flex items-center gap-1 text-xs font-bold text-sky-400 hover:text-sky-300 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Torna al login</span>
+              </button>
+              <h3 className="text-lg font-black text-white">Recupera la tua Password</h3>
+              <p className="text-xs text-slate-400">
+                Inserisci l&apos;email associata al tuo account Echora per ricevere il link di ripristino tramite Firebase.
+              </p>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 text-xs text-center font-semibold">
+                {errorMsg}
+              </div>
+            )}
+
+            {infoMsg && (
+              <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 text-xs text-center font-semibold">
+                {infoMsg}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordReset} className="space-y-4 text-xs sm:text-sm">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  Indirizzo Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="email"
+                    required
+                    maxLength={INPUT_LIMITS.EMAIL_MAX}
+                    placeholder="tua.email@esempio.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-xl pl-10 pr-3.5 py-2.5 text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>{isLoading ? 'Invio in corso...' : 'Invia Email di Recupero'}</span>
+              </button>
+            </form>
+          </div>
         ) : (
           <div className="space-y-5">
             <div className="space-y-2">
@@ -192,6 +307,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                   onClick={() => {
                     setAuthMode('login');
                     setErrorMsg('');
+                    setInfoMsg('');
                   }}
                   className={`flex-1 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                     authMode === 'login'
@@ -207,6 +323,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                   onClick={() => {
                     setAuthMode('signup');
                     setErrorMsg('');
+                    setInfoMsg('');
                   }}
                   className={`flex-1 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                     authMode === 'signup'
@@ -285,6 +402,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                         <input
                           type="text"
                           required
+                          maxLength={INPUT_LIMITS.NAME_MAX}
                           placeholder="Es. Marco"
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
@@ -304,6 +422,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                         <input
                           type="text"
                           required
+                          maxLength={INPUT_LIMITS.NAME_MAX}
                           placeholder="Es. Rossi"
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
@@ -323,6 +442,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                       onChange={(e) => setVocalLevel(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-white outline-none"
                     >
+                      <option value="Allievo / Cantante">
+                        Allievo / Cantante
+                      </option>
                       <option value="Allievo Francesca">
                         Allievo di Francesca
                       </option>
@@ -351,6 +473,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                   <input
                     type="email"
                     required
+                    maxLength={INPUT_LIMITS.EMAIL_MAX}
                     placeholder="tua.email@esempio.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -360,9 +483,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-bold">
+                    Password
+                  </label>
+                  {authMode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsResetMode(true);
+                        setErrorMsg('');
+                        setInfoMsg('');
+                      }}
+                      className="text-[11px] font-bold text-sky-400 hover:text-sky-300 cursor-pointer"
+                    >
+                      Password dimenticata?
+                    </button>
+                  )}
+                </div>
 
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -370,12 +508,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onNavigateToProfile }) => 
                   <input
                     type="password"
                     required
+                    minLength={authMode === 'signup' ? INPUT_LIMITS.PASSWORD_MIN : 1}
+                    maxLength={INPUT_LIMITS.PASSWORD_MAX}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-xl pl-10 pr-3.5 py-2.5 text-white outline-none"
                   />
                 </div>
+                {authMode === 'signup' && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Minimo 8 caratteri, almeno una lettera e un numero.
+                  </p>
+                )}
               </div>
 
               <button

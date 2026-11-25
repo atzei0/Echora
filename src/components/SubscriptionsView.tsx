@@ -3,6 +3,7 @@ import { Check, Sparkles, ShieldCheck, Zap, Lock, ArrowRight, RefreshCw, CheckCi
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../lib/firebase';
+import { isTrustedStripeRedirectUrl } from '../utils/validation';
 
 type PlanType = 'trial' | 'monthly' | 'quarterly' | 'annual' | 'test';
 
@@ -12,12 +13,11 @@ interface SubscriptionsViewProps {
 
 export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate }) => {
   const { t, language } = useLanguage();
-  const { user, openAuthModal } = useAuth();
+  const { user, isCoach, isSubscribed, openAuthModal, refreshSubscriptionStatus } = useAuth();
 
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<boolean>(false);
-  const [verifiedStatus, setVerifiedStatus] = useState<any>(null);
 
   useEffect(() => {
     const handleHashChange = async () => {
@@ -31,26 +31,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         sessionStorage.removeItem('echora_pending_checkout');
         setSuccessBanner(true);
         if (user?.id) {
-          try {
-            const token = await auth.currentUser?.getIdToken();
-            if (!token) {
-              console.warn('Utente non autenticato o token Firebase non disponibile per la verifica abbonamento.');
-            } else {
-              const res = await fetch(`/api/subscription-status?userId=${encodeURIComponent(user.id)}`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data?.isPremium) {
-                  setVerifiedStatus(data);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('Verifica dello stato abbonamento temporaneamente non disponibile:', e);
-          }
+          await refreshSubscriptionStatus(true).catch(() => null);
         }
       } else {
         setSuccessBanner(false);
@@ -84,7 +65,6 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
       }
 
-      // Mark that user actively initiated checkout in this session
       sessionStorage.setItem('echora_pending_checkout', 'true');
 
       const res = await fetch('/api/create-checkout-session', {
@@ -94,9 +74,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          userId: user.id,
           plan,
-          customerEmail: user.email
         })
       });
 
@@ -107,7 +85,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         throw new Error(data.error || 'Errore durante la creazione della sessione Stripe Checkout');
       }
 
-      if (data.url) {
+      if (data.url && isTrustedStripeRedirectUrl(data.url)) {
         const isIframe = window.self !== window.top;
         if (isIframe) {
           window.open(data.url, '_blank', 'noopener,noreferrer');
@@ -116,7 +94,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         }
       } else {
         sessionStorage.removeItem('echora_pending_checkout');
-        throw new Error('URL di reindirizzamento Stripe non restituito dal server.');
+        throw new Error('URL di reindirizzamento Stripe non valido o non restituito dal server.');
       }
     } catch (err: any) {
       console.error('Errore Checkout Stripe:', err);
@@ -127,16 +105,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
     }
   };
 
-  const isCoach = Boolean(
-    user && (
-      user.role === 'coach' ||
-      user.isCoach === true ||
-      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
-      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
-    )
-  );
-
-  const isUserPremium = !isCoach && (user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing' || verifiedStatus?.isPremium);
+  const isUserPremium = !isCoach && isSubscribed;
 
   return (
     <div className="min-w-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
@@ -190,7 +159,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
                 Abbonamento Echora Pro Attivo
               </h3>
               <p className="text-xs text-emerald-200 mt-0.5">
-                Piano: <strong className="text-white capitalize">{user?.subscriptionPlan || verifiedStatus?.subscriptionPlan || 'Pro'}</strong> — 
+                Piano: <strong className="text-white capitalize">{user?.subscriptionPlan || 'Pro'}</strong> — 
                 Valido fino al: <strong className="text-white">{user?.subscriptionPeriodEnd ? new Date(user.subscriptionPeriodEnd).toLocaleDateString('it-IT') : 'Rinnovo Automatico'}</strong>
               </p>
             </div>

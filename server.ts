@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import Stripe from "stripe";
@@ -13,9 +13,10 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+app.disable("x-powered-by");
 
 /* =========================================================
-   CONFIG
+   CONFIG & SECURITY HELPERS
    ========================================================= */
 
 const PLAN_CONFIG = {
@@ -44,6 +45,139 @@ const PLAN_CONFIG = {
 
 type PaidPlan = keyof typeof PLAN_CONFIG;
 
+const ALLOWED_EXERCISE_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
+const ALLOWED_AUDIO_EXTENSIONS = new Set(["webm", "mp3", "wav", "ogg", "m4a", "mp4"]);
+const MAX_DEMO_AUDIO_BYTES = 10 * 1024 * 1024; // 10 MB max
+
+function getSafeAppUrl(req?: express.Request): string {
+  const configured = process.env.APP_URL?.trim();
+  if (configured) {
+    try {
+      const parsed = new URL(configured);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.origin;
+      }
+    } catch {
+      console.warn("APP_URL non valido ignorato.");
+    }
+  }
+
+  if (req) {
+    const forwardedHost = (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim();
+    const host = (forwardedHost || req.headers.host || "").trim();
+    const protoHeader = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim();
+    const proto = protoHeader === "https" || req.secure ? "https" : "http";
+    if (host && /^[a-zA-Z0-9.-]+(:\d{1,5})?$/.test(host)) {
+      return `${proto}://${host}`;
+    }
+  }
+
+  return `http://localhost:${PORT}`;
+}
+
+function getClientIp(req: express.Request): string {
+  const xff = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim();
+  return xff || req.ip || req.socket?.remoteAddress || "unknown";
+}
+
+/* =========================================================
+   HTTP SECURITY HEADERS, ORIGIN CHECK & RATE LIMITER
+   ========================================================= */
+
+app.use((req, res, next) => {
+  // Never set X-Frame-Options because preview runs inside AI Studio iFrame
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), camera=(), microphone=(self)");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+
+  if (req.path.startsWith("/api/") && req.path !== "/api/demo-audio-manifest") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  }
+  next();
+});
+
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function createRateLimiter(bucketPrefix: string, maxRequests: number, windowMs: number) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const now = Date.now();
+    if (rateLimitStore.size > 5000) {
+      for (const [k, v] of rateLimitStore.entries()) {
+        if (v.resetAt <= now) rateLimitStore.delete(k);
+      }
+    }
+
+    const key = `${bucketPrefix}:${getClientIp(req)}`;
+    const entry = rateLimitStore.get(key);
+    if (!entry || entry.resetAt <= now) {
+      rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (entry.count >= maxRequests) {
+      const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSec));
+      return res.status(429).json({
+        error: "Troppe richieste in un breve intervallo. Riprova tra qualche secondo.",
+      });
+    }
+
+    entry.count += 1;
+    return next();
+  };
+}
+
+const apiGeneralLimiter = createRateLimiter("api", 120, 60_000);
+const apiSensitiveLimiter = createRateLimiter("sensitive", 25, 60_000);
+
+app.use("/api", (req, res, next) => {
+  if (req.path === "/webhook" || req.path === "/health") {
+    return next();
+  }
+  return apiGeneralLimiter(req, res, next);
+});
+
+const verifySameOriginOnApi: express.RequestHandler = (req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) {
+    return next();
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const reqHost = (
+      (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0] ||
+      req.headers.host ||
+      ""
+    ).trim().toLowerCase();
+
+    if (reqHost && originUrl.host.toLowerCase() === reqHost) {
+      return next();
+    }
+
+    const configuredAppUrl = process.env.APP_URL?.trim();
+    if (configuredAppUrl) {
+      try {
+        if (new URL(configuredAppUrl).origin === originUrl.origin) {
+          return next();
+        }
+      } catch {}
+    }
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      (originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1")
+    ) {
+      return next();
+    }
+
+    return res.status(403).json({ error: "Origine della richiesta non autorizzata." });
+  } catch {
+    return res.status(403).json({ error: "Header Origin non valido." });
+  }
+};
+
 /* =========================================================
    STRIPE WEBHOOK RAW BODY
    Deve essere prima di express.json()
@@ -53,6 +187,7 @@ app.use(
   "/api/webhook",
   express.raw({
     type: "*/*",
+    limit: "2mb",
     verify: (req: any, _res, buf) => {
       req.rawBody = buf;
     },
@@ -63,8 +198,8 @@ app.use(
    STANDARD JSON & STATIC AUDIO
    ========================================================= */
 
-app.use(express.json({ limit: "25mb" }));
-app.use(express.urlencoded({ limit: "25mb", extended: true }));
+app.use(express.json({ limit: "16mb" }));
+app.use(express.urlencoded({ limit: "16mb", extended: true }));
 app.use(
   "/audio",
   express.static(path.join(process.cwd(), "public", "audio"), {
@@ -97,8 +232,7 @@ function getStripe(): Stripe | null {
   let secretKey = (
     process.env.STRIPE_SECRET_KEY ||
     process.env.STRIPE_SECRET ||
-    process.env.STRIPE_KEY ||
-    process.env.VITE_STRIPE_SECRET_KEY
+    process.env.STRIPE_KEY
   )?.trim();
 
   if (secretKey) {
@@ -186,6 +320,7 @@ interface AuthenticatedRequest extends express.Request {
   user?: {
     uid: string;
     email?: string;
+    emailVerified: boolean;
     name?: string;
   };
 }
@@ -194,27 +329,12 @@ const AUTHORIZED_COACH_EMAILS = new Set([
   "francesca.atzei0@gmail.com",
 ]);
 
-function isAuthorizedCoach(email?: string, uid?: string): boolean {
-  if (!email && !uid) return false;
-  const cleanEmail = email?.trim().toLowerCase();
-  if (cleanEmail && AUTHORIZED_COACH_EMAILS.has(cleanEmail)) return true;
+function isAuthorizedCoach(email?: string, emailVerified?: boolean): boolean {
+  if (!email || emailVerified !== true) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  if (AUTHORIZED_COACH_EMAILS.has(cleanEmail)) return true;
   if (process.env.COACH_EMAIL && cleanEmail === process.env.COACH_EMAIL.trim().toLowerCase()) return true;
   return false;
-}
-
-function parseFirebaseJwt(token: string) {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-    const now = Math.floor(Date.now() / 1000);
-    if (payload.exp && payload.exp < now) {
-      return null;
-    }
-    return payload;
-  } catch {
-    return null;
-  }
 }
 
 const requireAuth = async (
@@ -230,43 +350,43 @@ const requireAuth = async (
     });
   }
 
-  const idToken = authHeader.split("Bearer ")[1]?.trim();
+  const idToken = authHeader.slice("Bearer ".length).trim();
 
-  if (!idToken) {
+  if (!idToken || idToken.length > 8192) {
     return res.status(401).json({
-      error: "Autenticazione richiesta: token Bearer vuoto.",
+      error: "Autenticazione richiesta: token Bearer non valido.",
     });
   }
 
   const adminAuth = getAdminAuth();
-  if (adminAuth) {
-    try {
-      const decodedToken = await adminAuth.verifyIdToken(idToken);
-      req.user = {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        name: decodedToken.name,
-      };
-      return next();
-    } catch (err: any) {
-      console.warn("Verifica verifyIdToken con adminAuth ha riscontrato:", err?.message || err);
-    }
+  if (!adminAuth) {
+    console.error("Auth error: Firebase Admin Auth non inizializzato.");
+    return res.status(500).json({
+      error: "Servizio di autenticazione temporaneamente non disponibile.",
+    });
   }
 
-  // Fallback JWT parsing to allow resilient authentication
-  const jwtPayload = parseFirebaseJwt(idToken);
-  if (jwtPayload && (jwtPayload.sub || jwtPayload.user_id)) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    if (!decodedToken?.uid) {
+      return res.status(401).json({
+        error: "Token di autenticazione non valido o scaduto.",
+      });
+    }
+
     req.user = {
-      uid: jwtPayload.sub || jwtPayload.user_id,
-      email: jwtPayload.email,
-      name: jwtPayload.name,
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: Boolean(decodedToken.email_verified),
+      name: decodedToken.name,
     };
     return next();
+  } catch (err: any) {
+    console.warn("Verifica crittografica Firebase ID Token fallita:", err?.code || "invalid_token");
+    return res.status(401).json({
+      error: "Token di autenticazione non valido o scaduto.",
+    });
   }
-
-  return res.status(401).json({
-    error: "Token di autenticazione non valido o scaduto.",
-  });
 };
 
 const requireCoachAuth = async (
@@ -275,9 +395,9 @@ const requireCoachAuth = async (
   next: express.NextFunction
 ) => {
   await requireAuth(req, res, () => {
-    if (!isAuthorizedCoach(req.user?.email, req.user?.uid)) {
+    if (!isAuthorizedCoach(req.user?.email, req.user?.emailVerified)) {
       return res.status(403).json({
-        error: "Accesso negato: operazione riservata esclusivamente all'account Coach autorizzato (francesca.atzei0@gmail.com).",
+        error: "Accesso negato: operazione riservata esclusivamente all'account Coach verificato.",
       });
     }
     next();
@@ -285,7 +405,7 @@ const requireCoachAuth = async (
 };
 
 /* =========================================================
-   IN-MEMORY FALLBACK
+   IN-MEMORY FALLBACK & STRIPE EVENT DEDUPLICATION
    ========================================================= */
 
 const subscriptionsMap = new Map<
@@ -304,10 +424,21 @@ const subscriptionsMap = new Map<
     pendingPlanStartsAt?: string;
     pendingPlanInvoiceItemId?: string;
     stripeScheduleId?: string;
+    lastStripeEventCreated?: number;
 
     updatedAt: string;
   }
 >();
+
+const processedStripeEvents = new Map<string, number>();
+
+function recordProcessedEventMemory(eventId: string) {
+  if (processedStripeEvents.size >= 5000) {
+    const oldestKey = processedStripeEvents.keys().next().value;
+    if (oldestKey) processedStripeEvents.delete(oldestKey);
+  }
+  processedStripeEvents.set(eventId, Date.now());
+}
 
 /* =========================================================
    FIRESTORE HELPERS
@@ -315,7 +446,8 @@ const subscriptionsMap = new Map<
 
 async function safeFirestoreSet(
   userId: string,
-  data: Record<string, any>
+  data: Record<string, any>,
+  throwOnError = false
 ) {
   try {
     const db = getAdminDb();
@@ -327,9 +459,10 @@ async function safeFirestoreSet(
         .set(data, { merge: true });
     }
   } catch (e: any) {
-    console.log(
-      `Firestore Admin sync note: ${e?.message || e}`
-    );
+    console.warn("Firestore Admin sync note:", e?.code || e?.message || "sync_error");
+    if (throwOnError && (process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || process.env.VERCEL === "1")) {
+      throw e;
+    }
   }
 }
 
@@ -350,12 +483,86 @@ async function safeFirestoreGet(
       }
     }
   } catch (e: any) {
-    console.log(
-      `Firestore Admin read note: ${e?.message || e}`
-    );
+    console.warn("Firestore Admin read note:", e?.code || e?.message || "read_error");
   }
 
   return null;
+}
+
+async function isStripeEventAlreadyProcessed(eventId: string): Promise<boolean> {
+  if (processedStripeEvents.has(eventId)) {
+    return true;
+  }
+  try {
+    const db = getAdminDb();
+    if (db) {
+      const snap = await db.collection("stripe_webhook_events").doc(eventId).get();
+      if (snap.exists) {
+        recordProcessedEventMemory(eventId);
+        return true;
+      }
+    }
+  } catch {
+    // Ignore read error when Admin IAM unavailable in local preview
+  }
+  return false;
+}
+
+async function markStripeEventProcessed(event: Stripe.Event): Promise<void> {
+  recordProcessedEventMemory(event.id);
+  try {
+    const db = getAdminDb();
+    if (db) {
+      await db.collection("stripe_webhook_events").doc(event.id).set({
+        eventId: event.id,
+        type: event.type,
+        created: event.created,
+        processedAt: new Date().toISOString(),
+      });
+    }
+  } catch {
+    // Ignore write error when Admin IAM unavailable in local preview
+  }
+}
+
+async function findUserIdByStripeCustomerId(
+  customerId: string | undefined,
+  stripe: Stripe
+): Promise<string | undefined> {
+  if (!customerId) return undefined;
+
+  for (const [uId, sub] of subscriptionsMap.entries()) {
+    if (sub.stripeCustomerId === customerId) {
+      return uId;
+    }
+  }
+
+  try {
+    const db = getAdminDb();
+    if (db) {
+      const snap = await db
+        .collection("users")
+        .where("stripeCustomerId", "==", customerId)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        return snap.docs[0].id;
+      }
+    }
+  } catch {
+    // Ignore query error if Admin IAM unavailable in preview
+  }
+
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (!customer.deleted && (customer as Stripe.Customer).metadata?.userId) {
+      return (customer as Stripe.Customer).metadata.userId;
+    }
+  } catch {
+    // Ignore retrieve failure
+  }
+
+  return undefined;
 }
 
 /* =========================================================
@@ -412,6 +619,9 @@ async function getSubscriptionData(userId: string) {
     stripeScheduleId:
       dbData.stripeScheduleId,
 
+    lastStripeEventCreated:
+      typeof dbData.lastStripeEventCreated === "number" ? dbData.lastStripeEventCreated : 0,
+
     updatedAt:
       dbData.updatedAt || new Date().toISOString(),
   };
@@ -443,7 +653,7 @@ app.get("/api/health", (_req, res) => {
    CREATE STRIPE CHECKOUT SESSION
    ========================================================= */
 
-app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedRequest, res) => {
+app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimiter, requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.uid;
 
@@ -453,13 +663,21 @@ app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedR
       });
     }
 
-    const {
-      plan,
-    } = req.body;
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({
+        error: "Corpo della richiesta non valido.",
+      });
+    }
+
+    const { plan } = req.body;
 
     let customerEmail =
       req.user?.email ||
       (typeof req.body.customerEmail === "string" ? req.body.customerEmail.trim() : undefined);
+
+    if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+      customerEmail = undefined;
+    }
 
     if (!customerEmail) {
       const dbProfile = await safeFirestoreGet(userId);
@@ -469,27 +687,26 @@ app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedR
     }
 
     if (
-      plan !== "trial" &&
+      typeof plan !== "string" ||
+      (plan !== "trial" &&
       plan !== "monthly" &&
       plan !== "quarterly" &&
       plan !== "annual" &&
-      plan !== "test"
+      plan !== "test")
     ) {
       return res.status(400).json({
         error: "Piano non valido",
       });
     }
 
-    const appUrl =
-      process.env.APP_URL ||
-      `http://localhost:${PORT}`;
+    const appUrl = getSafeAppUrl(req);
 
     const stripe = getStripe();
 
     if (!stripe) {
-      return res.status(400).json({
+      return res.status(503).json({
         error:
-          "Stripe non è ancora configurato. Inserisci la variabile d'ambiente STRIPE_SECRET_KEY.",
+          "Servizio pagamenti temporaneamente non configurato.",
       });
     }
 
@@ -908,13 +1125,11 @@ app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedR
   } catch (err: any) {
     console.error(
       "Errore creazione Stripe Checkout Session:",
-      err
+      err?.message || err
     );
 
     return res.status(500).json({
-      error:
-        "Impossibile avviare il Checkout: " +
-        (err.message || ""),
+      error: "Impossibile avviare il Checkout al momento. Riprova tra qualche istante.",
     });
   }
 });
@@ -923,7 +1138,7 @@ app.post("/api/create-checkout-session", requireAuth, async (req: AuthenticatedR
    CREATE CUSTOMER PORTAL SESSION
    ========================================================= */
 
-app.post("/api/create-portal-session", requireAuth, async (req: AuthenticatedRequest, res) => {
+app.post("/api/create-portal-session", verifySameOriginOnApi, apiSensitiveLimiter, requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.uid;
 
@@ -933,16 +1148,13 @@ app.post("/api/create-portal-session", requireAuth, async (req: AuthenticatedReq
       });
     }
 
-    const appUrl =
-      process.env.APP_URL ||
-      `http://localhost:${PORT}`;
+    const appUrl = getSafeAppUrl(req);
 
     const stripe = getStripe();
 
     if (!stripe) {
-      return res.status(400).json({
-        error:
-          "Stripe non è ancora configurato con STRIPE_SECRET_KEY",
+      return res.status(503).json({
+        error: "Servizio pagamenti temporaneamente non configurato.",
       });
     }
 
@@ -961,6 +1173,7 @@ app.post("/api/create-portal-session", requireAuth, async (req: AuthenticatedReq
     if (!customerId) {
       const customer =
         await stripe.customers.create({
+          email: req.user?.email || undefined,
           metadata: {
             userId,
           },
@@ -1007,9 +1220,7 @@ app.post("/api/create-portal-session", requireAuth, async (req: AuthenticatedReq
     );
 
     return res.status(500).json({
-      error:
-        "Impossibile accedere al Customer Portal: " +
-        (err.message || ""),
+      error: "Impossibile accedere al portale di gestione abbonamento. Riprova tra qualche istante.",
     });
   }
 });
@@ -1451,490 +1662,263 @@ app.post("/api/webhook", async (req, res) => {
   }
 
   try {
+    // 1. Replay / Deduplication protection
+    if (await isStripeEventAlreadyProcessed(event.id)) {
+      return res.json({ received: true, duplicate: true });
+    }
+
     /* =====================================================
        CHECKOUT COMPLETED
        ===================================================== */
 
-    if (
-      event.type ===
-      "checkout.session.completed"
-    ) {
-      const session =
-        event.data.object as Stripe.Checkout.Session;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
 
       const userId =
         session.client_reference_id ||
         session.metadata?.userId;
 
-      const plan =
-        session.metadata?.plan;
+      const plan = session.metadata?.plan;
 
-      /*
-       * Pagamento una tantum per cambio piano.
-       */
-
+      // One-time scheduled plan change payment
       if (
-        session.metadata?.changeType ===
-          "scheduled_plan_change" &&
+        session.metadata?.changeType === "scheduled_plan_change" &&
         userId &&
         isPaidPlan(plan)
       ) {
-        /*
-         * Non procediamo se Stripe non considera
-         * il pagamento riuscito.
-         */
-
-        if (
-          session.payment_status !==
-          "paid"
-        ) {
-          console.log(
-            "Checkout future plan non ancora pagato:",
-            session.id
-          );
-
-          return res.json({
-            received: true,
-          });
+        if (session.payment_status !== "paid") {
+          console.log("Checkout future plan non ancora pagato:", session.id);
+          return res.json({ received: true });
         }
 
-        if (!stripe) {
-          throw new Error(
-            "Stripe non configurato."
-          );
-        }
-
-        const subscriptionId =
-          session.metadata
-            ?.subscriptionId;
-
+        const subscriptionId = session.metadata?.subscriptionId;
         if (!subscriptionId) {
-          throw new Error(
-            "Subscription ID mancante nel cambio piano."
-          );
+          throw new Error("Subscription ID mancante nel cambio piano.");
         }
 
-        const subscription =
-          await stripe.subscriptions.retrieve(
-            subscriptionId
-          );
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
         const paymentIntentId =
-          typeof session.payment_intent ===
-          "string"
+          typeof session.payment_intent === "string"
             ? session.payment_intent
             : session.payment_intent?.id;
 
         if (!paymentIntentId) {
-          throw new Error(
-            "PaymentIntent mancante nel pagamento del cambio piano."
-          );
+          throw new Error("PaymentIntent mancante nel pagamento del cambio piano.");
         }
 
-        /*
-         * Controlliamo ancora Firestore prima
-         * di creare schedule e credito.
-         */
-
-        const existing =
-          await getSubscriptionData(
-            userId
-          );
-
+        const existing = await getSubscriptionData(userId);
         if (existing?.pendingPlan) {
-          console.log(
-            "Cambio piano già presente:",
-            existing.pendingPlan
-          );
-
-          return res.json({
-            received: true,
-          });
+          await markStripeEventProcessed(event);
+          return res.json({ received: true });
         }
 
-        await scheduleFuturePlan(
-          stripe,
-          userId,
-          subscription,
-          plan,
-          paymentIntentId
-        );
-
-        return res.json({
-          received: true,
-        });
+        await scheduleFuturePlan(stripe, userId, subscription, plan, paymentIntentId);
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
       }
 
-      /* ===================================================
-         CHECKOUT NORMALE
-         =================================================== */
-
+      // Standard checkout flow
       if (userId) {
-        const normalPlan =
-          plan || "monthly";
+        const normalPlan = plan || "monthly";
 
         const customerId =
-          typeof session.customer ===
-          "string"
+          typeof session.customer === "string"
             ? session.customer
             : session.customer?.id;
 
         const subscriptionId =
-          typeof session.subscription ===
-          "string"
+          typeof session.subscription === "string"
             ? session.subscription
             : session.subscription?.id;
 
-        /*
-         * Il test one-time non crea subscription.
-         */
-
-        if (
-          normalPlan === "test"
-        ) {
-          return res.json({
-            received: true,
-          });
+        if (normalPlan === "test") {
+          await markStripeEventProcessed(event);
+          return res.json({ received: true });
         }
 
-        /*
-         * Per il trial usiamo i dati reali
-         * della subscription Stripe.
-         */
+        const isPaymentSettled =
+          session.payment_status === "paid" ||
+          session.payment_status === "no_payment_required";
 
-        let subscriptionStatus =
-          "active";
+        let subscriptionStatus = isPaymentSettled
+          ? (normalPlan === "trial" ? "trialing" : "active")
+          : "incomplete";
 
-        let periodEnd:
-          | string
-          | undefined;
+        let periodEnd: string | undefined;
 
-        if (subscriptionId && stripe) {
+        if (subscriptionId) {
           try {
-            const subscription =
-              await stripe.subscriptions.retrieve(
-                subscriptionId
-              );
-
-            subscriptionStatus =
-              subscription.status ===
-              "trialing"
-                ? "trialing"
-                : subscription.status ===
-                    "active"
-                  ? "active"
-                  : subscription.status;
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            if (
+              subscription.status === "trialing" ||
+              subscription.status === "active" ||
+              subscription.status === "past_due" ||
+              subscription.status === "incomplete" ||
+              subscription.status === "canceled" ||
+              subscription.status === "unpaid"
+            ) {
+              subscriptionStatus = subscription.status;
+            }
 
             const periodEndTs =
-              (subscription as any)
-                .current_period_end ||
-              (subscription as any)
-                .trial_end;
+              (subscription as any).current_period_end ||
+              (subscription as any).trial_end;
 
             if (periodEndTs) {
-              periodEnd =
-                new Date(
-                  periodEndTs * 1000
-                ).toISOString();
+              periodEnd = new Date(periodEndTs * 1000).toISOString();
             }
           } catch (e: any) {
-            console.log(
-              "Subscription retrieve note:",
-              e?.message || e
-            );
+            console.warn("Subscription retrieve note:", e?.message || e);
           }
         }
 
-        /*
-         * Fallback se Stripe non restituisce
-         * subito il periodo.
-         */
-
-        if (!periodEnd) {
+        if (!periodEnd && (subscriptionStatus === "active" || subscriptionStatus === "trialing")) {
           const periodDays =
             normalPlan === "trial"
               ? 7
               : normalPlan === "monthly"
                 ? 30
-                : normalPlan ===
-                    "quarterly"
+                : normalPlan === "quarterly"
                   ? 90
                   : 365;
 
-          periodEnd =
-            new Date(
-              Date.now() +
-                periodDays *
-                  86400000
-            ).toISOString();
+          periodEnd = new Date(Date.now() + periodDays * 86400000).toISOString();
         }
 
-        const subInfo = {
-          subscriptionStatus:
-            normalPlan === "trial"
-              ? "trialing"
-              : "active",
-
-          subscriptionPlan:
-            normalPlan,
-
-          subscriptionPeriodEnd:
-            periodEnd,
-
-          cancelAtPeriodEnd:
-            false,
-
-          stripeCustomerId:
-            customerId,
-
-          stripeSubscriptionId:
-            subscriptionId,
-
-          updatedAt:
-            new Date().toISOString(),
+        const subInfo: Record<string, any> = {
+          subscriptionStatus,
+          subscriptionPlan: normalPlan,
+          subscriptionPeriodEnd: periodEnd || null,
+          cancelAtPeriodEnd: false,
+          stripeCustomerId: customerId || null,
+          stripeSubscriptionId: subscriptionId || null,
+          lastStripeEventCreated: event.created,
+          updatedAt: new Date().toISOString(),
         };
 
         const existing =
-          subscriptionsMap.get(
-            userId
-          ) || {
-            subscriptionStatus:
-              "inactive",
-            updatedAt:
-              new Date().toISOString(),
+          subscriptionsMap.get(userId) || {
+            subscriptionStatus: "inactive",
+            updatedAt: new Date().toISOString(),
           };
 
-        subscriptionsMap.set(
-          userId,
-          {
-            ...existing,
-            ...subInfo,
-          } as any
-        );
+        subscriptionsMap.set(userId, {
+          ...existing,
+          ...subInfo,
+        } as any);
 
-        await safeFirestoreSet(
-          userId,
-          subInfo
-        );
+        await safeFirestoreSet(userId, subInfo, true);
       }
 
-      return res.json({
-        received: true,
-      });
+      await markStripeEventProcessed(event);
+      return res.json({ received: true });
     }
 
     /* =====================================================
-       SUBSCRIPTION UPDATED
+       SUBSCRIPTION CREATED & UPDATED
        ===================================================== */
 
     if (
-      event.type ===
-      "customer.subscription.updated"
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated"
     ) {
-      const subscription =
-        event.data.object as Stripe.Subscription;
+      const subscription = event.data.object as Stripe.Subscription;
 
       const customerId =
-        typeof subscription.customer ===
-        "string"
+        typeof subscription.customer === "string"
           ? subscription.customer
           : subscription.customer?.id;
 
-      const subscriptionId =
-        subscription.id;
+      const subscriptionId = subscription.id;
 
-      let userId =
-        subscription.metadata?.userId;
-
-      /*
-       * Se metadata non contiene userId,
-       * cerchiamo il customer nei nostri dati.
-       */
-
+      let userId = subscription.metadata?.userId;
       if (!userId) {
-        for (
-          const [uId, sub]
-          of subscriptionsMap.entries()
-        ) {
-          if (
-            sub.stripeCustomerId ===
-            customerId
-          ) {
-            userId = uId;
-            break;
-          }
-        }
+        userId = await findUserIdByStripeCustomerId(customerId, stripe);
       }
 
       if (!userId) {
-        console.log(
-          "Webhook subscription.updated senza userId:",
-          subscriptionId
-        );
-
-        return res.json({
-          received: true,
-        });
+        console.warn("Webhook subscription update senza userId:", subscriptionId);
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
       }
 
-      const rawStatus =
-        subscription.status;
+      const existing = await getSubscriptionData(userId);
+      if (
+        existing?.lastStripeEventCreated &&
+        event.created < existing.lastStripeEventCreated
+      ) {
+        console.warn("Ignorato evento Stripe obsoleto:", event.id);
+        await markStripeEventProcessed(event);
+        return res.json({ received: true, stale: true });
+      }
 
+      const rawStatus = subscription.status;
       const status =
         rawStatus === "active" ||
-        rawStatus === "trialing"
+        rawStatus === "trialing" ||
+        rawStatus === "past_due" ||
+        rawStatus === "incomplete" ||
+        rawStatus === "unpaid"
           ? rawStatus
-          : rawStatus === "past_due"
-            ? "past_due"
-            : "canceled";
+          : "canceled";
 
       const periodEndTs =
-        (subscription as any)
-          .current_period_end ||
-        (subscription as any)
-          .trial_end;
+        (subscription as any).current_period_end ||
+        (subscription as any).trial_end;
 
-      const periodEnd =
-        periodEndTs
-          ? new Date(
-              periodEndTs * 1000
-            ).toISOString()
-          : null;
+      const periodEnd = periodEndTs
+        ? new Date(periodEndTs * 1000).toISOString()
+        : null;
 
-      const cancelAtPeriodEnd =
-        Boolean(
-          subscription.cancel_at_period_end
-        );
+      const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
 
-      const existing =
-        await getSubscriptionData(
-          userId
-        );
+      let planToStore = existing?.subscriptionPlan || subscription.metadata?.plan;
+      let pendingPlan = existing?.pendingPlan;
 
-      /*
-       * Controlliamo se esiste un piano futuro
-       * e se il momento di inizio è arrivato.
-       */
-
-      let planToStore =
-        existing?.subscriptionPlan;
-
-      let pendingPlan =
-        existing?.pendingPlan;
-
-      if (
-        existing?.pendingPlan &&
-        existing?.pendingPlanStartsAt
-      ) {
-        const startsAt =
-          new Date(
-            existing.pendingPlanStartsAt
-          ).getTime();
-
-        const now =
-          Date.now();
-
-        /*
-         * Se la nuova fase è iniziata,
-         * il piano futuro diventa quello corrente.
-         */
-
-        if (now >= startsAt) {
-          planToStore =
-            existing.pendingPlan;
-
-          pendingPlan =
-            undefined;
+      if (existing?.pendingPlan && existing?.pendingPlanStartsAt) {
+        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
+        if (Date.now() >= startsAt) {
+          planToStore = existing.pendingPlan;
+          pendingPlan = undefined;
 
           const clearPending = {
             pendingPlan: null,
             pendingPlanAmount: null,
-            pendingPlanPaymentIntentId:
-              null,
-            pendingPlanStartsAt:
-              null,
-            pendingPlanInvoiceItemId:
-              null,
+            pendingPlanPaymentIntentId: null,
+            pendingPlanStartsAt: null,
+            pendingPlanInvoiceItemId: null,
             stripeScheduleId: null,
           };
 
-          await safeFirestoreSet(
-            userId,
-            clearPending
-          );
+          await safeFirestoreSet(userId, clearPending, true);
         }
       }
 
-      /*
-       * Se Stripe ha impostato cancel_at_period_end,
-       * significa che il periodo corrente continua
-       * ma non verrà rinnovato.
-       *
-       * Se c'è un piano futuro, quel piano non deve
-       * partire: lo rimborsiamo e rimuoviamo lo schedule.
-       */
-
-      if (
-        cancelAtPeriodEnd &&
-        existing?.pendingPlan &&
-        existing.pendingPlanStartsAt
-      ) {
-        const startsAt =
-          new Date(
-            existing.pendingPlanStartsAt
-          ).getTime();
-
+      if (cancelAtPeriodEnd && existing?.pendingPlan && existing.pendingPlanStartsAt) {
+        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
         if (Date.now() < startsAt) {
-          if (stripe) {
-            await cancelPendingPlan(
-              stripe,
-              userId,
-              existing
-            );
-          }
-
-          pendingPlan =
-            undefined;
+          await cancelPendingPlan(stripe, userId, existing);
+          pendingPlan = undefined;
         }
       }
 
-      const subUpdate: Record<
-        string,
-        any
-      > = {
-        subscriptionStatus:
-          status,
-
-        subscriptionPeriodEnd:
-          periodEnd,
-
+      const subUpdate: Record<string, any> = {
+        subscriptionStatus: status,
+        subscriptionPeriodEnd: periodEnd,
         cancelAtPeriodEnd,
-
-        stripeCustomerId:
-          customerId,
-
-        stripeSubscriptionId:
-          subscriptionId,
-
-        updatedAt:
-          new Date().toISOString(),
+        stripeCustomerId: customerId || null,
+        stripeSubscriptionId: subscriptionId,
+        lastStripeEventCreated: event.created,
+        updatedAt: new Date().toISOString(),
       };
 
-      /*
-       * Non sovrascriviamo il piano attuale
-       * con quello futuro prima che inizi.
-       */
-
       if (planToStore) {
-        subUpdate.subscriptionPlan =
-          planToStore;
+        subUpdate.subscriptionPlan = planToStore;
       }
 
-      if (
-        pendingPlan !== undefined
-      ) {
-        subUpdate.pendingPlan =
-          pendingPlan || null;
+      if (pendingPlan !== undefined) {
+        subUpdate.pendingPlan = pendingPlan || null;
       }
 
       const updated = {
@@ -1942,143 +1926,205 @@ app.post("/api/webhook", async (req, res) => {
         ...subUpdate,
       };
 
-      subscriptionsMap.set(
-        userId,
-        updated as any
-      );
+      subscriptionsMap.set(userId, updated as any);
+      await safeFirestoreSet(userId, subUpdate, true);
+      await markStripeEventProcessed(event);
 
-      await safeFirestoreSet(
-        userId,
-        subUpdate
-      );
-
-      return res.json({
-        received: true,
-      });
+      return res.json({ received: true });
     }
 
     /* =====================================================
        SUBSCRIPTION DELETED
        ===================================================== */
 
-    if (
-      event.type ===
-      "customer.subscription.deleted"
-    ) {
-      const subscription =
-        event.data.object as Stripe.Subscription;
+    if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
 
       const customerId =
-        typeof subscription.customer ===
-        "string"
+        typeof subscription.customer === "string"
           ? subscription.customer
           : subscription.customer?.id;
 
-      let userId =
-        subscription.metadata?.userId;
-
+      let userId = subscription.metadata?.userId;
       if (!userId) {
-        for (
-          const [uId, sub]
-          of subscriptionsMap.entries()
-        ) {
-          if (
-            sub.stripeCustomerId ===
-            customerId
-          ) {
-            userId = uId;
-            break;
-          }
-        }
+        userId = await findUserIdByStripeCustomerId(customerId, stripe);
       }
 
       if (!userId) {
-        return res.json({
-          received: true,
-        });
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
       }
 
-      const existing =
-        await getSubscriptionData(
-          userId
-        );
-
-      /*
-       * Se per qualche motivo esiste ancora
-       * un pagamento futuro non iniziato,
-       * lo rimborsiamo.
-       */
-
+      const existing = await getSubscriptionData(userId);
       if (
-        existing?.pendingPlan &&
-        existing.pendingPlanStartsAt
+        existing?.lastStripeEventCreated &&
+        event.created < existing.lastStripeEventCreated
       ) {
-        const startsAt =
-          new Date(
-            existing.pendingPlanStartsAt
-          ).getTime();
+        await markStripeEventProcessed(event);
+        return res.json({ received: true, stale: true });
+      }
 
+      if (existing?.pendingPlan && existing.pendingPlanStartsAt) {
+        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
         if (Date.now() < startsAt) {
-          if (stripe) {
-            await cancelPendingPlan(
-              stripe,
-              userId,
-              existing
-            );
-          }
+          await cancelPendingPlan(stripe, userId, existing);
         }
       }
 
       const subDelete = {
-        subscriptionStatus:
-          "canceled",
-
-        cancelAtPeriodEnd:
-          false,
-
-        updatedAt:
-          new Date().toISOString(),
+        subscriptionStatus: "canceled",
+        cancelAtPeriodEnd: false,
+        lastStripeEventCreated: event.created,
+        updatedAt: new Date().toISOString(),
       };
 
       const current =
-        subscriptionsMap.get(
-          userId
-        ) || {
-          subscriptionStatus:
-            "canceled",
-          updatedAt:
-            new Date().toISOString(),
+        subscriptionsMap.get(userId) || {
+          subscriptionStatus: "canceled",
+          updatedAt: new Date().toISOString(),
         };
 
-      subscriptionsMap.set(
-        userId,
-        {
-          ...current,
-          ...subDelete,
-        } as any
-      );
+      subscriptionsMap.set(userId, {
+        ...current,
+        ...subDelete,
+      } as any);
 
-      await safeFirestoreSet(
-        userId,
-        subDelete
-      );
+      await safeFirestoreSet(userId, subDelete, true);
+      await markStripeEventProcessed(event);
 
-      return res.json({
-        received: true,
-      });
+      return res.json({ received: true });
     }
 
     /* =====================================================
-       EVENTI NON SPECIFICI
+       INVOICE PAID / PAYMENT SUCCEEDED & FAILED
        ===================================================== */
 
-    console.log(
-      `Evento Stripe ricevuto: ${event.type}`
-    );
+    if (
+      event.type === "invoice.paid" ||
+      event.type === "invoice.payment_succeeded" ||
+      event.type === "invoice.payment_failed"
+    ) {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId =
+        typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+      const invoiceSub = (invoice as any).subscription;
+      const subscriptionId =
+        typeof invoiceSub === "string" ? invoiceSub : invoiceSub?.id;
 
-    return res.json({
-      received: true,
-    });
+      const userId = await findUserIdByStripeCustomerId(customerId, stripe);
+      if (!userId) {
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
+      }
+
+      const existing = await getSubscriptionData(userId);
+      if (
+        existing?.lastStripeEventCreated &&
+        event.created < existing.lastStripeEventCreated
+      ) {
+        await markStripeEventProcessed(event);
+        return res.json({ received: true, stale: true });
+      }
+
+      if (event.type === "invoice.payment_failed") {
+        const failedUpdate = {
+          subscriptionStatus: "past_due",
+          lastStripeEventCreated: event.created,
+          updatedAt: new Date().toISOString(),
+        };
+        subscriptionsMap.set(userId, {
+          ...(existing || {}),
+          ...failedUpdate,
+        } as any);
+        await safeFirestoreSet(userId, failedUpdate, true);
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
+      }
+
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const periodEndTs =
+          (subscription as any).current_period_end ||
+          (subscription as any).trial_end;
+        const periodEnd = periodEndTs
+          ? new Date(periodEndTs * 1000).toISOString()
+          : existing?.subscriptionPeriodEnd || null;
+
+        const paidUpdate: Record<string, any> = {
+          subscriptionStatus: subscription.status === "trialing" ? "trialing" : "active",
+          subscriptionPeriodEnd: periodEnd,
+          stripeCustomerId: customerId || null,
+          stripeSubscriptionId: subscriptionId,
+          lastStripeEventCreated: event.created,
+          updatedAt: new Date().toISOString(),
+        };
+
+        subscriptionsMap.set(userId, {
+          ...(existing || {}),
+          ...paidUpdate,
+        } as any);
+        await safeFirestoreSet(userId, paidUpdate, true);
+      }
+
+      await markStripeEventProcessed(event);
+      return res.json({ received: true });
+    }
+
+    /* =====================================================
+       CHARGE REFUNDED
+       ===================================================== */
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      const customerId =
+        typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
+      const paymentIntentId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id;
+
+      const userId = await findUserIdByStripeCustomerId(customerId, stripe);
+      if (userId) {
+        const existing = await getSubscriptionData(userId);
+        if (
+          existing?.pendingPlanPaymentIntentId &&
+          paymentIntentId &&
+          existing.pendingPlanPaymentIntentId === paymentIntentId
+        ) {
+          await cancelPendingPlan(stripe, userId, {
+            ...existing,
+            pendingPlanPaymentIntentId: null,
+          });
+        } else if (charge.refunded && existing?.stripeSubscriptionId) {
+          try {
+            const subscription = await stripe.subscriptions.retrieve(existing.stripeSubscriptionId);
+            const refundUpdate = {
+              subscriptionStatus:
+                subscription.status === "active" || subscription.status === "trialing"
+                  ? subscription.status
+                  : "canceled",
+              lastStripeEventCreated: event.created,
+              updatedAt: new Date().toISOString(),
+            };
+            subscriptionsMap.set(userId, {
+              ...(existing || {}),
+              ...refundUpdate,
+            } as any);
+            await safeFirestoreSet(userId, refundUpdate, true);
+          } catch {}
+        }
+      }
+
+      await markStripeEventProcessed(event);
+      return res.json({ received: true });
+    }
+
+    /* =====================================================
+       ALTRI EVENTI
+       ===================================================== */
+
+    await markStripeEventProcessed(event);
+    return res.json({ received: true });
   } catch (err: any) {
     console.error(
       "Errore elaborazione webhook Stripe:",
@@ -2086,8 +2132,7 @@ app.post("/api/webhook", async (req, res) => {
     );
 
     return res.status(500).json({
-      error:
-        "Errore interno durante elaborazione webhook",
+      error: "Errore interno durante elaborazione webhook",
     });
   }
 });
@@ -2098,9 +2143,10 @@ app.post("/api/webhook", async (req, res) => {
 
 app.get(
   "/api/auth/verify-coach",
+  verifySameOriginOnApi,
   requireAuth,
   (req: AuthenticatedRequest, res) => {
-    const isCoach = isAuthorizedCoach(req.user?.email, req.user?.uid);
+    const isCoach = isAuthorizedCoach(req.user?.email, req.user?.emailVerified);
     if (!isCoach) {
       return res.json({
         isCoach: false,
@@ -2127,6 +2173,7 @@ app.get(
 
 app.get(
   "/api/subscription-status",
+  verifySameOriginOnApi,
   requireAuth,
   async (req: AuthenticatedRequest, res) => {
     try {
@@ -2139,8 +2186,8 @@ app.get(
         });
       }
 
-      // Check if user is the authorized Coach
-      if (isAuthorizedCoach(userEmail, userId)) {
+      // Check if user is the cryptographically verified authorized Coach
+      if (isAuthorizedCoach(userEmail, req.user?.emailVerified)) {
         return res.json({
           subscriptionStatus: "active",
           isPremium: true,
@@ -2155,45 +2202,67 @@ app.get(
         });
       }
 
-      // Normal student verification
-      const data =
-        await getSubscriptionData(
-          userId
-        );
+      // Normal student verification (ignores any client query/body userId)
+      let data = await getSubscriptionData(userId);
+      let status = data?.subscriptionStatus || "inactive";
 
-      const status =
-        data?.subscriptionStatus ||
-        "inactive";
+      // Check expiration & refresh live from Stripe if periodEnd has elapsed or subscription exists
+      const periodEndMs = data?.subscriptionPeriodEnd
+        ? new Date(data.subscriptionPeriodEnd).getTime()
+        : null;
+      const isExpiredLocally = Boolean(
+        periodEndMs && !Number.isNaN(periodEndMs) && periodEndMs < Date.now()
+      );
+
+      if (data?.stripeSubscriptionId && (isExpiredLocally || status === "past_due" || status === "incomplete")) {
+        const stripe = getStripe();
+        if (stripe) {
+          try {
+            const liveSub = await stripe.subscriptions.retrieve(data.stripeSubscriptionId);
+            const liveEndTs =
+              (liveSub as any).current_period_end || (liveSub as any).trial_end;
+            const liveEndIso = liveEndTs
+              ? new Date(liveEndTs * 1000).toISOString()
+              : data.subscriptionPeriodEnd;
+            const liveStatus =
+              liveSub.status === "active" ||
+              liveSub.status === "trialing" ||
+              liveSub.status === "past_due"
+                ? liveSub.status
+                : "canceled";
+
+            const synced = {
+              subscriptionStatus: liveStatus,
+              subscriptionPeriodEnd: liveEndIso || null,
+              cancelAtPeriodEnd: Boolean(liveSub.cancel_at_period_end),
+              updatedAt: new Date().toISOString(),
+            };
+            data = { ...data, ...synced } as any;
+            subscriptionsMap.set(userId, data!);
+            await safeFirestoreSet(userId, synced);
+            status = liveStatus;
+          } catch (syncErr) {
+            console.warn("Live Stripe sync check note:", (syncErr as any)?.message || syncErr);
+          }
+        }
+      }
+
+      const finalPeriodEndMs = data?.subscriptionPeriodEnd
+        ? new Date(data.subscriptionPeriodEnd).getTime()
+        : null;
+      const isNotExpired =
+        !finalPeriodEndMs || Number.isNaN(finalPeriodEndMs) || finalPeriodEndMs >= Date.now();
 
       const isPremium =
-        status === "active" ||
-        status === "trialing";
+        (status === "active" || status === "trialing") && isNotExpired;
 
       return res.json({
-        subscriptionStatus:
-          status,
-
-        subscriptionPlan:
-          data?.subscriptionPlan ||
-          null,
-
-        subscriptionPeriodEnd:
-          data?.subscriptionPeriodEnd ||
-          null,
-
-        cancelAtPeriodEnd:
-          Boolean(
-            data?.cancelAtPeriodEnd
-          ),
-
-        pendingPlan:
-          data?.pendingPlan ||
-          null,
-
-        pendingPlanStartsAt:
-          data?.pendingPlanStartsAt ||
-          null,
-
+        subscriptionStatus: isPremium ? status : (status === "active" || status === "trialing" ? "expired" : status),
+        subscriptionPlan: data?.subscriptionPlan || null,
+        subscriptionPeriodEnd: data?.subscriptionPeriodEnd || null,
+        cancelAtPeriodEnd: Boolean(data?.cancelAtPeriodEnd),
+        pendingPlan: data?.pendingPlan || null,
+        pendingPlanStartsAt: data?.pendingPlanStartsAt || null,
         isPremium,
         role: "student",
         isCoach: false,
@@ -2204,29 +2273,9 @@ app.get(
         err?.message || err
       );
 
-      return res.json({
-        subscriptionStatus:
-          "inactive",
-
-        subscriptionPlan:
-          null,
-
-        subscriptionPeriodEnd:
-          null,
-
-        cancelAtPeriodEnd:
-          false,
-
-        pendingPlan:
-          null,
-
-        pendingPlanStartsAt:
-          null,
-
-        isPremium:
-          false,
-        role: "student",
-        isCoach: false,
+      // Fail-closed: never pretend 200 OK when verification fails
+      return res.status(500).json({
+        error: "Impossibile verificare lo stato dell'abbonamento.",
       });
     }
   }
@@ -2236,8 +2285,20 @@ app.get(
    DEMO AUDIO FOR EXERCISES
    ========================================================= */
 
-const DEMO_AUDIO_DIR = path.join(process.cwd(), "public", "audio", "demos");
-const DEMO_MANIFEST_PATH = path.join(DEMO_AUDIO_DIR, "manifest.json");
+const DEMO_AUDIO_DIR = path.resolve(process.cwd(), "public", "audio", "demos");
+const DEMO_MANIFEST_PATH = path.resolve(DEMO_AUDIO_DIR, "manifest.json");
+
+function resolveSafeDemoPath(filename: string): string | null {
+  const base = path.basename(filename);
+  if (!base || base !== filename || base.includes("..")) {
+    return null;
+  }
+  const resolved = path.resolve(DEMO_AUDIO_DIR, base);
+  if (!resolved.startsWith(DEMO_AUDIO_DIR + path.sep)) {
+    return null;
+  }
+  return resolved;
+}
 
 function ensureDemoDirExists() {
   if (!fs.existsSync(DEMO_AUDIO_DIR)) {
@@ -2255,9 +2316,9 @@ function readDemoManifest(): Record<string, { url: string; filename: string; upd
       const raw = fs.readFileSync(DEMO_MANIFEST_PATH, "utf-8");
       const parsed = JSON.parse(raw);
       for (const [key, item] of Object.entries(parsed)) {
-        if (item && typeof item === "object" && (item as any).filename) {
-          const filePath = path.join(DEMO_AUDIO_DIR, (item as any).filename);
-          if (fs.existsSync(filePath) && fs.statSync(filePath).size > 100) {
+        if (item && typeof item === "object" && typeof (item as any).filename === "string") {
+          const filePath = resolveSafeDemoPath((item as any).filename);
+          if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).size > 100) {
             manifest[key] = item as any;
           } else {
             hadInvalidEntries = true;
@@ -2324,63 +2385,85 @@ app.get("/api/demo-audio-manifest", (_req, res) => {
 });
 
 // Admin/Coach: Save an audio demo directly to public/audio/demos
-app.post("/api/admin/save-demo-audio", requireCoachAuth, (req: AuthenticatedRequest, res) => {
+app.post("/api/admin/save-demo-audio", verifySameOriginOnApi, apiSensitiveLimiter, requireCoachAuth, (req: AuthenticatedRequest, res) => {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+    return res.status(400).json({ error: "Corpo della richiesta non valido." });
+  }
+
   const { exerciseId, base64Data, extension = "webm" } = req.body;
 
-  if (!exerciseId || !base64Data) {
-    return res.status(400).json({ error: "exerciseId e base64Data sono obbligatori." });
+  if (typeof exerciseId !== "string" || !ALLOWED_EXERCISE_ID_REGEX.test(exerciseId.trim())) {
+    return res.status(400).json({ error: "Identificativo esercizio non valido." });
+  }
+
+  if (typeof extension !== "string" || !ALLOWED_AUDIO_EXTENSIONS.has(extension.trim().toLowerCase())) {
+    return res.status(400).json({ error: "Estensione file audio non supportata." });
+  }
+
+  if (typeof base64Data !== "string" || !base64Data.trim()) {
+    return res.status(400).json({ error: "Dati audio mancanti o non validi." });
+  }
+
+  if (base64Data.startsWith("data:") && !/^data:(audio\/[a-zA-Z0-9.+-]+|application\/octet-stream)(;[^,]*)?,/.test(base64Data)) {
+    return res.status(400).json({ error: "Formato dati audio non valido." });
   }
 
   try {
     ensureDemoDirExists();
 
-    // Clean base64 header properly regardless of codecs (e.g. data:audio/webm;codecs=opus;base64,...)
     const cleanBase64 = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
     const buffer = Buffer.from(cleanBase64.trim(), "base64");
 
-    if (buffer.length < 100) {
-      return res.status(400).json({ error: "I dati audio ricevuti sono vuoti o corrotti." });
+    if (buffer.length < 100 || buffer.length > MAX_DEMO_AUDIO_BYTES) {
+      return res.status(400).json({ error: "Dimensione file audio non valida (consentito fino a 10 MB)." });
     }
 
-    const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const safeExt = extension.replace(/[^a-zA-Z0-9]/g, "") || "webm";
-    
-    // Save raw upload/recording file
+    const safeId = exerciseId.trim();
+    const safeExt = extension.trim().toLowerCase();
+
     const rawFilename = `${safeId}_raw.${safeExt}`;
-    const rawFilePath = path.join(DEMO_AUDIO_DIR, rawFilename);
+    const rawFilePath = resolveSafeDemoPath(rawFilename);
     const mp3Filename = `${safeId}.mp3`;
-    const mp3FilePath = path.join(DEMO_AUDIO_DIR, mp3Filename);
+    const mp3FilePath = resolveSafeDemoPath(mp3Filename);
+
+    if (!rawFilePath || !mp3FilePath) {
+      return res.status(400).json({ error: "Percorso file non consentito." });
+    }
 
     fs.writeFileSync(rawFilePath, buffer);
 
     let finalFilename = `${safeId}.${safeExt}`;
     let isMp3Converted = false;
 
-    // Transcode to standard MP3 via FFmpeg for universal browser/iOS/Safari compatibility
+    // Transcode safely without shell interpolation (prevents command injection)
     try {
-      execSync(`ffmpeg -y -i "${rawFilePath}" -c:a libmp3lame -b:a 128k "${mp3FilePath}"`, {
-        stdio: "ignore",
-        timeout: 15000,
-      });
+      execFileSync(
+        "ffmpeg",
+        ["-y", "-i", rawFilePath, "-c:a", "libmp3lame", "-b:a", "128k", mp3FilePath],
+        {
+          stdio: "ignore",
+          timeout: 15000,
+          shell: false,
+        }
+      );
 
       if (fs.existsSync(mp3FilePath) && fs.statSync(mp3FilePath).size > 100) {
         finalFilename = mp3Filename;
         isMp3Converted = true;
-        // Clean up raw temp file
         try {
           fs.unlinkSync(rawFilePath);
         } catch {}
       }
     } catch (ffmpegErr) {
       console.warn("FFmpeg conversion fallback to original file format:", ffmpegErr);
-      const fallbackPath = path.join(DEMO_AUDIO_DIR, finalFilename);
-      fs.renameSync(rawFilePath, fallbackPath);
+      const fallbackPath = resolveSafeDemoPath(finalFilename);
+      if (fallbackPath) {
+        fs.renameSync(rawFilePath, fallbackPath);
+      }
     }
 
     const manifest = readDemoManifest();
     const publicUrl = `/audio/demos/${finalFilename}`;
-    // Save STRICTLY and EXCLUSIVELY for the exact safeId.
-    // Zero propagation across alias clusters, zero automatic copy to baseId.
     manifest[safeId] = {
       url: publicUrl,
       filename: finalFilename,
@@ -2389,27 +2472,20 @@ app.post("/api/admin/save-demo-audio", requireCoachAuth, (req: AuthenticatedRequ
 
     writeDemoManifest(manifest);
 
-    // If dist exists, mirror the file and manifest there too
     try {
-      const distAudioDir = path.join(process.cwd(), "dist", "audio", "demos");
-      if (fs.existsSync(path.join(process.cwd(), "dist"))) {
+      const distAudioDir = path.resolve(process.cwd(), "dist", "audio", "demos");
+      if (fs.existsSync(path.resolve(process.cwd(), "dist"))) {
         if (!fs.existsSync(distAudioDir)) {
           fs.mkdirSync(distAudioDir, { recursive: true });
         }
-        const srcFile = path.join(DEMO_AUDIO_DIR, finalFilename);
-        const dstFile = path.join(distAudioDir, finalFilename);
-        if (fs.existsSync(srcFile)) {
+        const srcFile = resolveSafeDemoPath(finalFilename);
+        const dstFile = path.resolve(distAudioDir, finalFilename);
+        if (srcFile && dstFile.startsWith(distAudioDir + path.sep) && fs.existsSync(srcFile)) {
           fs.copyFileSync(srcFile, dstFile);
         }
-        fs.writeFileSync(path.join(distAudioDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
+        fs.writeFileSync(path.resolve(distAudioDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
       }
     } catch {}
-
-    console.log(
-      `Audio demo salvato con successo per ${safeId}: ${publicUrl} (${
-        isMp3Converted ? fs.statSync(mp3FilePath).size : buffer.length
-      } bytes)`
-    );
 
     return res.json({
       success: true,
@@ -2419,40 +2495,43 @@ app.post("/api/admin/save-demo-audio", requireCoachAuth, (req: AuthenticatedRequ
       format: isMp3Converted ? "mp3" : safeExt,
     });
   } catch (err: any) {
-    console.error("Errore salvataggio audio demo:", err);
-    return res.status(500).json({ error: err.message || "Errore nel salvataggio dell'audio demo sul server." });
+    console.error("Errore salvataggio audio demo:", err?.message || err);
+    return res.status(500).json({ error: "Errore nel salvataggio dell'audio demo sul server." });
   }
 });
 
 // Admin/Coach: Delete an audio demo
-app.delete("/api/admin/delete-demo-audio/:exerciseId", requireCoachAuth, (req: AuthenticatedRequest, res) => {
+app.delete("/api/admin/delete-demo-audio/:exerciseId", verifySameOriginOnApi, apiSensitiveLimiter, requireCoachAuth, (req: AuthenticatedRequest, res) => {
   const { exerciseId } = req.params;
-  const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  if (typeof exerciseId !== "string" || !ALLOWED_EXERCISE_ID_REGEX.test(exerciseId.trim())) {
+    return res.status(400).json({ error: "Identificativo esercizio non valido." });
+  }
+
+  const safeId = exerciseId.trim();
 
   try {
     const manifest = readDemoManifest();
     const existing = manifest[safeId];
     if (existing && existing.filename) {
-      const filePath = path.join(DEMO_AUDIO_DIR, existing.filename);
-      if (fs.existsSync(filePath)) {
+      const filePath = resolveSafeDemoPath(existing.filename);
+      if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
     }
-    // Also remove any possible mp3/webm variants
-    const mp3Path = path.join(DEMO_AUDIO_DIR, `${safeId}.mp3`);
-    if (fs.existsSync(mp3Path)) {
-      try { fs.unlinkSync(mp3Path); } catch {}
-    }
-    const webmPath = path.join(DEMO_AUDIO_DIR, `${safeId}.webm`);
-    if (fs.existsSync(webmPath)) {
-      try { fs.unlinkSync(webmPath); } catch {}
+
+    for (const ext of ALLOWED_AUDIO_EXTENSIONS) {
+      const variantPath = resolveSafeDemoPath(`${safeId}.${ext}`);
+      if (variantPath && fs.existsSync(variantPath)) {
+        try { fs.unlinkSync(variantPath); } catch {}
+      }
     }
 
     delete manifest[safeId];
     writeDemoManifest(manifest);
     return res.json({ success: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    console.error("Errore eliminazione audio demo:", err?.message || err);
+    return res.status(500).json({ error: "Errore durante l'eliminazione dell'audio demo." });
   }
 });
 

@@ -1,52 +1,188 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Funzione di utilità per identificare l'elenco dei campi riservati gestiti da Stripe/Server
+
+    // =========================================================
+    // HELPER FUNCTIONS
+    // =========================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Verified Coach identity: requires cryptographic Firebase Auth token
+    // AND verified email flag from Firebase Auth.
+    function isVerifiedCoach() {
+      return isAuthenticated()
+        && request.auth.token.email == 'francesca.atzei0@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // Privileged fields that ONLY the backend server (Admin SDK) may create or modify
     function hasPrivilegedFields(data) {
       return data.keys().hasAny([
         'subscriptionStatus',
         'subscriptionPlan',
         'subscriptionPeriodEnd',
+        'cancelAtPeriodEnd',
         'stripeCustomerId',
-        'stripeSubscriptionId'
+        'stripeSubscriptionId',
+        'pendingPlan',
+        'pendingPlanAmount',
+        'pendingPlanPaymentIntentId',
+        'pendingPlanStartsAt',
+        'pendingPlanInvoiceItemId',
+        'stripeScheduleId',
+        'lastStripeEventCreated',
+        'role',
+        'isCoach',
+        'emailVerified'
       ]);
     }
 
-    // Regole per il profilo utente
-    match /users/{userId} {
-      // 1. Lettura consentita esclusivamente al proprietario autenticato
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      // 2. Creazione consentita solo per il proprio UID, senza poter impostare campi di abbonamento privilegiati
-      allow create: if request.auth != null 
-                    && request.auth.uid == userId 
-                    && !hasPrivilegedFields(request.resource.data);
-
-      // 3. Modifica consentita solo per il proprio UID:
-      //    l'utente non può alterare nessuno dei campi privilegiati (la differenza non deve includerli)
-      allow update: if request.auth != null 
-                    && request.auth.uid == userId 
-                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                      'subscriptionStatus',
-                      'subscriptionPlan',
-                      'subscriptionPeriodEnd',
-                      'stripeCustomerId',
-                      'stripeSubscriptionId'
-                    ]);
-
-      // 4. Eliminazione consentita esclusivamente al proprietario
-      allow delete: if request.auth != null && request.auth.uid == userId;
+    function touchesPrivilegedFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'subscriptionStatus',
+        'subscriptionPlan',
+        'subscriptionPeriodEnd',
+        'cancelAtPeriodEnd',
+        'stripeCustomerId',
+        'stripeSubscriptionId',
+        'pendingPlan',
+        'pendingPlanAmount',
+        'pendingPlanPaymentIntentId',
+        'pendingPlanStartsAt',
+        'pendingPlanInvoiceItemId',
+        'stripeScheduleId',
+        'lastStripeEventCreated',
+        'role',
+        'isCoach',
+        'emailVerified'
+      ]);
     }
 
-    // Registrazioni audio demo ufficiali degli esercizi di canto:
-    // Lettura pubblica: consente a tutti gli allievi di ascoltare gli esempi vocali ufficiali
-    // Scrittura: consentita esclusivamente all'account Coach autorizzato
+    function touchesImmutableIdentityFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'uid',
+        'email',
+        'createdAt'
+      ]);
+    }
+
+    // Strict allowlist + type + size validation for `/users/{userId}` documents
+    function isValidUserPayload(data, userId) {
+      return data.keys().hasOnly([
+          'uid', 'email', 'name', 'firstName', 'lastName', 'avatarUrl',
+          'provider', 'vocalLevel', 'createdAt', 'updatedAt',
+          'vocalProfile', 'customRoutines', 'activeCustomRoutineId',
+          'practiceSessions', 'preferredLanguage', 'preferredNotation',
+          'xp', 'streakDays', 'confirmationEmailSent',
+          // Server-managed fields allowed in existing documents during client merge
+          // (protected separately against client create/update via hasPrivilegedFields / touchesPrivilegedFields)
+          'emailVerified', 'role', 'isCoach',
+          'subscriptionStatus', 'subscriptionPlan', 'subscriptionPeriodEnd',
+          'cancelAtPeriodEnd', 'stripeCustomerId', 'stripeSubscriptionId',
+          'pendingPlan', 'pendingPlanAmount', 'pendingPlanPaymentIntentId',
+          'pendingPlanStartsAt', 'pendingPlanInvoiceItemId', 'stripeScheduleId',
+          'lastStripeEventCreated'
+        ])
+        && (!('uid' in data) || (data.uid is string && data.uid == userId))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 254))
+        && (!('name' in data) || (data.name is string && data.name.size() <= 160))
+        && (!('firstName' in data) || (data.firstName is string && data.firstName.size() <= 80))
+        && (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 80))
+        && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500000))
+        && (!('provider' in data) || data.provider in ['email', 'google'])
+        && (!('vocalLevel' in data) || (data.vocalLevel is string && data.vocalLevel.size() <= 80))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64))
+        && (!('activeCustomRoutineId' in data) || data.activeCustomRoutineId == null || (data.activeCustomRoutineId is string && data.activeCustomRoutineId.size() <= 128))
+        && (!('preferredLanguage' in data) || data.preferredLanguage in ['it', 'en'])
+        && (!('preferredNotation' in data) || data.preferredNotation in ['latin', 'scientific'])
+        && (!('customRoutines' in data) || (data.customRoutines is list && data.customRoutines.size() <= 50))
+        && (!('practiceSessions' in data) || (data.practiceSessions is list && data.practiceSessions.size() <= 1000))
+        && (!('vocalProfile' in data) || data.vocalProfile == null || data.vocalProfile is map);
+    }
+
+    function isValidDemoAudioPayload(data, demoKey) {
+      return data.keys().hasOnly([
+          'key',
+          'exerciseId',
+          'patternId',
+          'audioData',
+          'extension',
+          'updatedAt',
+          'authorEmail'
+        ])
+        && data.key is string
+        && data.key == demoKey
+        && data.key.size() > 0
+        && data.key.size() <= 160
+        && data.exerciseId is string
+        && data.exerciseId.size() > 0
+        && data.exerciseId.size() <= 128
+        && (!('patternId' in data) || data.patternId == null || (data.patternId is string && data.patternId.size() <= 128))
+        && data.audioData is string
+        && data.audioData.size() > 20
+        && data.audioData.size() <= 1000000
+        && data.extension in ['webm', 'mp3', 'wav', 'ogg', 'm4a', 'mp4']
+        && data.updatedAt is number
+        && (!('authorEmail' in data) || data.authorEmail == null || (data.authorEmail is string && data.authorEmail.size() <= 254));
+    }
+
+    // =========================================================
+    // USERS COLLECTION
+    // =========================================================
+
+    match /users/{userId} {
+      // Only the authenticated owner can read their own profile
+      allow read: if isOwner(userId);
+
+      // Owner can create their own profile without setting any privileged/server fields
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == request.auth.uid
+        && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email)
+        && !hasPrivilegedFields(request.resource.data)
+        && isValidUserPayload(request.resource.data, userId);
+
+      // Owner can update non-privileged profile/progress fields only; immutable identity fields locked
+      allow update: if isOwner(userId)
+        && !touchesPrivilegedFields()
+        && !touchesImmutableIdentityFields()
+        && isValidUserPayload(request.resource.data, userId);
+
+      // Owner can delete their own profile document
+      allow delete: if isOwner(userId);
+    }
+
+    // =========================================================
+    // OFFICIAL EXERCISE DEMO AUDIO RECORDINGS
+    // =========================================================
+
     match /demo_audio_recordings/{demoKey} {
+      // Students and visitors can play official demos
       allow read: if true;
-      allow write: if request.auth != null && 
-                   (request.auth.token.email == 'francesca.atzei0@gmail.com' ||
-                    request.auth.uid == 'francesca.atzei0@gmail.com');
+
+      // Only the verified Coach can create, update, or delete official demos
+      allow create, update: if isVerifiedCoach()
+        && isValidDemoAudioPayload(request.resource.data, demoKey);
+      allow delete: if isVerifiedCoach();
+    }
+
+    // =========================================================
+    // SERVER-ONLY COLLECTIONS & DEFAULT DENY
+    // =========================================================
+
+    match /stripe_webhook_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

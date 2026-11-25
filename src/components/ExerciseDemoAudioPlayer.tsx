@@ -3,6 +3,7 @@ import { Play, Pause, Mic, Square, RotateCcw, Trash2, Download, Volume2, VolumeX
 import { getDemoAudio, saveDemoAudio, deleteDemoAudio, getExactKey } from '../lib/demoAudioStorage';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { INPUT_LIMITS, ALLOWED_AUDIO_EXTENSIONS } from '../utils/validation';
 
 interface ExerciseDemoAudioPlayerProps {
   exerciseId: string;
@@ -24,21 +25,13 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
 }) => {
   const { language } = useLanguage();
   const isEn = language === 'en';
-  const { user } = useAuth();
+  const { user, isCoach } = useAuth();
 
   // Strict, exact unique key
   const effectiveDemoKey = getExactKey(exerciseId, patternId);
 
-  // Author / Coach permission check: strictly the authorized Coach (francesca.atzei0@gmail.com) can record and manage audio demos
-  const canManageDemos = Boolean(
-    (user && (
-      user.role === 'coach' ||
-      user.isCoach === true ||
-      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
-      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
-    )) ||
-    (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-  );
+  // Strictly server-verified Coach authorization (no localhost or client-email bypasses)
+  const canManageDemos = isCoach;
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -57,6 +50,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
   const [isMicBlocked, setIsMicBlocked] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
 
   // References to avoid stale closures and runaway timers
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -331,7 +325,25 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'mp3';
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!ALLOWED_AUDIO_EXTENSIONS.has(ext)) {
+      setRecorderError(
+        isEn
+          ? 'Unsupported audio format. Allowed: MP3, WAV, M4A, WebM, OGG.'
+          : 'Formato file non supportato. Formati consentiti: MP3, WAV, M4A, WebM, OGG.'
+      );
+      return;
+    }
+
+    if (file.size <= 0 || file.size > INPUT_LIMITS.DEMO_AUDIO_MAX_BYTES) {
+      setRecorderError(
+        isEn
+          ? 'Audio file size must be under 10 MB.'
+          : 'Il file audio non può superare 10 MB.'
+      );
+      return;
+    }
+
     const blob = file;
     const url = URL.createObjectURL(blob);
 
@@ -367,20 +379,28 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
       }, 1200);
     } catch (e: any) {
       console.error('Save demo error:', e);
-      setRecorderError(isEn ? 'Error saving audio demo.' : 'Errore nel salvataggio dell\'audio demo.');
+      setRecorderError(e?.message || (isEn ? 'Error saving audio demo.' : 'Errore nel salvataggio dell\'audio demo.'));
       setIsSaving(false);
     }
   };
 
   const handleDeleteDemo = async () => {
-    if (confirm(isEn ? 'Delete this audio demo?' : 'Eliminare questa registrazione audio demo?')) {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
       }
       setIsPlaying(false);
       await deleteDemoAudio(effectiveDemoKey);
       setAudioUrl(null);
+      setConfirmDelete(false);
       setIsModalOpen(false);
+    } catch (err: any) {
+      setRecorderError(err?.message || (isEn ? 'Error deleting audio demo.' : 'Errore nell\'eliminazione della registrazione demo.'));
+      setConfirmDelete(false);
     }
   };
 
@@ -693,13 +713,27 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
             {audioUrl && !previewBlob && (
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
                 <span className="text-slate-500 text-[11px]">Esempio attualmente registrato</span>
-                <button
-                  onClick={handleDeleteDemo}
-                  className="flex items-center gap-1 text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Elimina registrazione</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {confirmDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-slate-400 hover:text-white text-[11px] cursor-pointer"
+                    >
+                      {isEn ? 'Cancel' : 'Annulla'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDeleteDemo}
+                    className={`flex items-center gap-1 transition-colors cursor-pointer ${
+                      confirmDelete ? 'text-rose-300 font-black underline' : 'text-rose-400 hover:text-rose-300'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{confirmDelete ? (isEn ? 'Confirm Delete' : 'Conferma Eliminazione') : (isEn ? 'Delete' : 'Elimina registrazione')}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

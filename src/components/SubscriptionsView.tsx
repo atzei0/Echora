@@ -127,12 +127,55 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
     }
   };
 
-  const isUserPremium = user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing' || verifiedStatus?.isPremium;
+  const isCoach = Boolean(
+    user && (
+      user.role === 'coach' ||
+      user.isCoach === true ||
+      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
+      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
+    )
+  );
+
+  const isUserPremium = !isCoach && (user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing' || verifiedStatus?.isPremium);
 
   return (
     <div className="min-w-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
-      {/* VERIFIED ACTIVE SUBSCRIPTION BANNER */}
+      {/* COACH AUTHORIZED ACCESS BANNER */}
+      {isCoach && (
+        <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-950/90 via-indigo-950/90 to-slate-900 border-2 border-purple-400/80 text-purple-100 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/50 flex items-center justify-center text-purple-300 flex-shrink-0">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                <span>Account Coach Autorizzato — Accesso Illimitato Verificato</span>
+              </div>
+              <h3 className="text-xl font-black text-white">
+                Accesso Completo Coach Echora Attivo
+              </h3>
+              <p className="text-xs text-purple-200 mt-0.5">
+                Account autorizzato: <strong className="text-white">{user?.email || 'francesca.atzei0@gmail.com'}</strong> —
+                Stato: <strong className="text-purple-300">Accesso Completo Senza Abbonamento</strong>
+              </p>
+              <p className="text-[11px] text-purple-300/80 mt-1">
+                Hai permessi completi per visualizzare, creare, modificare ed eliminare esercizi, registrazioni demo, routine personalizzate e testare liberamente ogni funzione.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate('exercises')}
+            className="px-6 py-3 rounded-2xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 flex-shrink-0"
+          >
+            <span>Accedi a tutti i Vocal Workout</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* VERIFIED ACTIVE STUDENT SUBSCRIPTION BANNER */}
       {isUserPremium && (
         <div className="p-6 rounded-3xl bg-emerald-950/80 border-2 border-emerald-400/80 text-emerald-100 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-4">

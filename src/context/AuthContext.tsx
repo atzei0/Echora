@@ -43,10 +43,14 @@ export interface UserAccount {
   subscriptionStatus?: string;
   subscriptionPlan?: string;
   subscriptionPeriodEnd?: string;
+  role?: 'coach' | 'student';
+  isCoach?: boolean;
 }
 
 interface AuthContextType {
   user: UserAccount | null;
+  isCoach: boolean;
+  role: 'coach' | 'student';
   isCloudHydrated: boolean;
   vocalProfile: VocalRangeProfile | null;
   sessions: PracticeSession[];
@@ -353,28 +357,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriptionModalMessage(null);
   };
 
-  // In ambiente di sviluppo (import.meta.env.DEV, localhost, container di sviluppo ais-dev- o account admin Francesca),
-  // sblocca l'accesso a tutte le sezioni per consentire test, registrazioni e verifiche senza simulare pagamenti.
-  const isDevHost = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.includes('ais-dev-') ||
-    window.location.hostname.includes('run.app')
-  );
-
-  const isAdminUser = Boolean(
+  const isAuthorizedCoachIdentity = Boolean(
     user && (
-      user.email === 'francesca.atzei0@gmail.com' ||
-      user.id === 'francesca.atzei0@gmail.com' ||
-      user.subscriptionStatus === 'active' ||
-      user.subscriptionStatus === 'trialing'
+      user.role === 'coach' ||
+      user.isCoach === true ||
+      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
+      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
     )
   );
 
+  const isCoach = isAuthorizedCoachIdentity;
+  const role: 'coach' | 'student' = isCoach ? 'coach' : 'student';
+
+  // L'account coach autorizzato (francesca.atzei0@gmail.com) ha accesso completo e illimitato
+  // a tutte le sezioni e funzionalità di Echora senza dover sottoscrivere alcun abbonamento.
+  // I limiti dei piani e degli abbonamenti continuano ad applicarsi rigorosamente ed esclusivamente agli allievi.
   const isSubscribed = Boolean(
-    import.meta.env.DEV ||
-    isDevHost ||
-    isAdminUser
+    isCoach ||
+    user?.subscriptionStatus === 'active' ||
+    user?.subscriptionStatus === 'trialing' ||
+    (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
   );
 
   // Helper to write partial updates to Firestore `/users/{uid}` and update local cache
@@ -556,6 +558,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fullName =
       cloudData?.name || `${firstName} ${lastName}`.trim() || fallbackFullName;
 
+    // Server-side verification of subscription status and Coach role authorization
+    let serverVerification: any = null;
+    try {
+      const idToken = await fbUser.getIdToken();
+      if (idToken) {
+        const res = await fetch(`/api/subscription-status?userId=${encodeURIComponent(uid)}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+          },
+        });
+        if (res.ok) {
+          serverVerification = await res.json();
+        }
+      }
+    } catch (err) {
+      console.warn('Verifica abbonamento server-side fallback:', err);
+    }
+
+    const isCoachIdentified = Boolean(
+      serverVerification?.isCoach ||
+      serverVerification?.role === 'coach' ||
+      (fbUser.email && fbUser.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
+      (cloudData?.email && cloudData.email.toLowerCase() === 'francesca.atzei0@gmail.com')
+    );
+
     const profile: UserAccount = {
       id: uid,
       name: fullName,
@@ -564,7 +591,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: cloudData?.email || fbUser.email || hints?.email || '',
       provider,
       avatarUrl: cloudData?.avatarUrl || fbUser.photoURL || undefined,
-      vocalLevel: cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante',
+      vocalLevel: isCoachIdentified ? 'Insegnante / Vocal Coach' : (cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante'),
+      role: isCoachIdentified ? 'coach' : 'student',
+      isCoach: isCoachIdentified,
       createdAt: cloudData?.createdAt || new Date().toLocaleDateString('it-IT'),
       emailVerified: fbUser.emailVerified || Boolean(cloudData?.emailVerified),
       confirmationEmailSent: true,
@@ -576,9 +605,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       practiceSessions: mergedSessions,
       preferredLanguage: mergedLanguage,
       preferredNotation: mergedNotation,
-      subscriptionStatus: cloudData?.subscriptionStatus || 'inactive',
-      subscriptionPlan: cloudData?.subscriptionPlan || undefined,
-      subscriptionPeriodEnd: cloudData?.subscriptionPeriodEnd || undefined,
+      subscriptionStatus: isCoachIdentified
+        ? 'active'
+        : (serverVerification?.subscriptionStatus || cloudData?.subscriptionStatus || 'inactive'),
+      subscriptionPlan: isCoachIdentified
+        ? 'coach_unlimited'
+        : (serverVerification?.subscriptionPlan || cloudData?.subscriptionPlan || undefined),
+      subscriptionPeriodEnd: isCoachIdentified
+        ? '2099-12-31T23:59:59.000Z'
+        : (serverVerification?.subscriptionPeriodEnd || cloudData?.subscriptionPeriodEnd || undefined),
     };
 
     // Update React states
@@ -629,9 +664,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       firstName: profile.firstName,
       lastName: profile.lastName,
       email: profile.email,
+      role: profile.role,
+      isCoach: profile.isCoach,
       provider: profile.provider,
       avatarUrl: profile.avatarUrl || '',
-      vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
+      vocalLevel: profile.vocalLevel || (profile.isCoach ? 'Insegnante / Vocal Coach' : 'Allievo / Cantante'),
       createdAt: profile.createdAt,
       emailVerified: profile.emailVerified,
       vocalProfile: profile.vocalProfile,
@@ -1069,6 +1106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
+        isCoach,
+        role,
         isCloudHydrated,
         vocalProfile,
         sessions,

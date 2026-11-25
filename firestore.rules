@@ -38,5 +38,15 @@ service cloud.firestore {
       // 4. Eliminazione consentita esclusivamente al proprietario
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Registrazioni audio demo ufficiali degli esercizi di canto:
+    // Lettura pubblica: consente a tutti gli allievi di ascoltare gli esempi vocali ufficiali
+    // Scrittura: consentita esclusivamente all'account Coach autorizzato
+    match /demo_audio_recordings/{demoKey} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                   (request.auth.token.email == 'francesca.atzei0@gmail.com' ||
+                    request.auth.uid == 'francesca.atzei0@gmail.com');
+    }
   }
 }

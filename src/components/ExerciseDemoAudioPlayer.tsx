@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Mic, Square, RotateCcw, Trash2, Download, Volume2, Check, X, Sparkles, Upload, FileAudio, AlertTriangle, HelpCircle } from 'lucide-react';
-import { getDemoAudio, saveDemoAudioOnServer, deleteDemoAudioOnServer, getCandidateExerciseKeys, searchLocalStorageForAudio } from '../lib/demoAudioStorage';
+import { Play, Pause, Mic, Square, RotateCcw, Trash2, Download, Volume2, VolumeX, Check, X, Sparkles, Upload, FileAudio, AlertTriangle, HelpCircle } from 'lucide-react';
+import { getDemoAudio, saveDemoAudio, deleteDemoAudio, getExactKey } from '../lib/demoAudioStorage';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,7 +19,6 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
   exerciseId,
   patternId,
   patternName,
-  allowedPatterns,
   exerciseTitle,
   accentText = 'text-sky-400',
 }) => {
@@ -27,26 +26,18 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
   const isEn = language === 'en';
   const { user } = useAuth();
 
-  const effectiveDemoKey = patternId ? `${exerciseId}__${patternId}` : exerciseId;
+  // Strict, exact unique key
+  const effectiveDemoKey = getExactKey(exerciseId, patternId);
 
-  // Author / Admin permission check: Francesca, dev mode or AI Studio dev host can record/edit audio demos
-  const isDevHost = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.includes('ais-dev-') ||
-    window.location.hostname.includes('run.app') ||
-    window.location.hostname.includes('googleusercontent.com') ||
-    window.location.hostname.includes('web.app') ||
-    window.location.hostname.includes('firebaseapp.com')
-  );
-
+  // Author / Coach permission check: strictly the authorized Coach (francesca.atzei0@gmail.com) can record and manage audio demos
   const canManageDemos = Boolean(
-    import.meta.env.DEV ||
-    isDevHost ||
     (user && (
-      user.email?.toLowerCase().includes('francesca') ||
-      user.id?.toLowerCase().includes('francesca')
-    ))
+      user.role === 'coach' ||
+      user.isCoach === true ||
+      (user.email && user.email.toLowerCase() === 'francesca.atzei0@gmail.com') ||
+      (user.id && user.id.toLowerCase() === 'francesca.atzei0@gmail.com')
+    )) ||
+    (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
   );
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -64,7 +55,6 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
   const [previewExtension, setPreviewExtension] = useState<string>('webm');
   const [recorderError, setRecorderError] = useState<string | null>(null);
   const [isMicBlocked, setIsMicBlocked] = useState<boolean>(false);
-  const [showMicGuide, setShowMicGuide] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
@@ -76,9 +66,15 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Asynchronous race-condition protection: ensures rapid exercise switches never overwrite with stale responses
+  const currentRequestKeyRef = useRef<string>('');
+
   // Load existing demo audio whenever effectiveDemoKey changes
   useEffect(() => {
     let isMounted = true;
+    currentRequestKeyRef.current = effectiveDemoKey;
+    const requestedKey = effectiveDemoKey;
+
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
       audioPlayerRef.current.currentTime = 0;
@@ -86,28 +82,23 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
     setIsPlaying(false);
     setPlaybackProgress(0);
     setAudioDuration(0);
+    setAudioUrl(null);
 
-    getDemoAudio(effectiveDemoKey, allowedPatterns).then((url) => {
-      if (isMounted) {
+    getDemoAudio(requestedKey, exerciseId).then((url) => {
+      // Discard response if user has already navigated to a different exercise or unmounted
+      if (isMounted && currentRequestKeyRef.current === requestedKey) {
         if (url) {
           setAudioUrl(url);
           if (audioPlayerRef.current) {
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.load();
           }
-          // If loaded from browser localStorage, auto-sync to backend so it persists as .mp3 on disk
-          if (url.startsWith('data:audio') && canManageDemos) {
-            try {
-              fetch(url)
-                .then((r) => r.blob())
-                .then((blob) => {
-                  saveDemoAudioOnServer(effectiveDemoKey, blob).catch(() => {});
-                })
-                .catch(() => {});
-            } catch {}
-          }
         } else {
           setAudioUrl(null);
+          if (audioPlayerRef.current) {
+            audioPlayerRef.current.removeAttribute('src');
+            audioPlayerRef.current.load();
+          }
         }
       }
     });
@@ -119,7 +110,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
       }
       cleanupRecorder();
     };
-  }, [effectiveDemoKey, allowedPatterns, canManageDemos]);
+  }, [effectiveDemoKey, exerciseId]);
 
   const cleanupRecorder = () => {
     if (timerRef.current) {
@@ -149,15 +140,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
       el.onended = handleAudioEnded;
       el.ontimeupdate = handleTimeUpdate;
       el.onerror = () => {
-        console.warn('Audio demo loading error, trying local fallback');
-        const localFallback = searchLocalStorageForAudio(effectiveDemoKey, allowedPatterns);
-        if (localFallback && localFallback !== el.src) {
-          setAudioUrl(localFallback);
-          el.src = localFallback;
-          el.load();
-          el.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-          return;
-        }
+        console.warn('Audio demo loading error');
         setIsPlaying(false);
       };
     }
@@ -188,32 +171,8 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
             setIsPlaying(true);
           })
           .catch((e) => {
-            console.warn('Initial playback attempt note:', e);
-            // If url was webm, fallback to mp3
-            if (audioUrl.includes('.webm')) {
-              const mp3Url = audioUrl.replace('.webm', '.mp3');
-              setAudioUrl(mp3Url);
-              audio.src = mp3Url;
-              audio.load();
-              audio
-                .play()
-                .then(() => setIsPlaying(true))
-                .catch((err) => {
-                  console.warn('Fallback playback error:', err);
-                  setIsPlaying(false);
-                });
-            } else {
-              // Try local storage fallback if network failed
-              const localFallback = searchLocalStorageForAudio(effectiveDemoKey, allowedPatterns);
-              if (localFallback && localFallback !== audio.src) {
-                setAudioUrl(localFallback);
-                audio.src = localFallback;
-                audio.load();
-                audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-                return;
-              }
-              setIsPlaying(false);
-            }
+            console.warn('Playback error:', e);
+            setIsPlaying(false);
           });
       }
     }
@@ -389,7 +348,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
     setRecorderError(null);
 
     try {
-      const savedUrl = await saveDemoAudioOnServer(effectiveDemoKey, previewBlob, previewExtension);
+      const savedUrl = await saveDemoAudio(effectiveDemoKey, previewBlob, user?.email || undefined, previewExtension);
       setAudioUrl(savedUrl);
       if (audioPlayerRef.current) {
         audioPlayerRef.current.src = savedUrl;
@@ -408,7 +367,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
       }, 1200);
     } catch (e: any) {
       console.error('Save demo error:', e);
-      setRecorderError(isEn ? 'Error saving audio to server.' : 'Errore nel salvataggio dell\'audio sul server.');
+      setRecorderError(isEn ? 'Error saving audio demo.' : 'Errore nel salvataggio dell\'audio demo.');
       setIsSaving(false);
     }
   };
@@ -419,7 +378,7 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
         audioPlayerRef.current.pause();
       }
       setIsPlaying(false);
-      await deleteDemoAudioOnServer(effectiveDemoKey);
+      await deleteDemoAudio(effectiveDemoKey);
       setAudioUrl(null);
       setIsModalOpen(false);
     }
@@ -431,9 +390,14 @@ export const ExerciseDemoAudioPlayer: React.FC<ExerciseDemoAudioPlayerProps> = (
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // If user is a normal student/visitor and NO audio demo exists yet: show nothing
+  // If user is a normal student/visitor and NO audio demo exists yet: show explicit indicator
   if (!audioUrl && !canManageDemos) {
-    return null;
+    return (
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs shrink-0 select-none">
+        <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+        <span className="text-[11px] font-medium">{isEn ? 'Demo audio not available' : 'Esempio audio non disponibile'}</span>
+      </div>
+    );
   }
 
   return (

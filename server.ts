@@ -640,6 +640,78 @@ function isPaidPlan(
   );
 }
 
+class PlanChangeError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+const activePlanChangeUsers = new Set<string>();
+
+function getSubscriptionPeriodEndTs(subscription: Stripe.Subscription): number | undefined {
+  return (
+    (subscription as any).current_period_end ||
+    subscription.items?.data?.[0]?.current_period_end ||
+    (subscription as any).trial_end
+  );
+}
+
+function derivePlanFromPrice(
+  price: Stripe.Price | string | null | undefined
+): PaidPlan | undefined {
+  if (!price || typeof price !== "object") {
+    return undefined;
+  }
+  const metaPlan = price.metadata?.echoraPlan;
+  if (isPaidPlan(metaPlan)) {
+    return metaPlan;
+  }
+  const interval = price.recurring?.interval;
+  const intervalCount = price.recurring?.interval_count ?? 1;
+  const unitAmount = price.unit_amount;
+  if (interval === "year" && intervalCount === 1 && unitAmount === PLAN_CONFIG.annual.amount) {
+    return "annual";
+  }
+  if (interval === "month" && intervalCount === 3 && unitAmount === PLAN_CONFIG.quarterly.amount) {
+    return "quarterly";
+  }
+  if (interval === "month" && intervalCount === 1 && unitAmount === PLAN_CONFIG.monthly.amount) {
+    return "monthly";
+  }
+  return undefined;
+}
+
+function derivePlanFromSubscription(subscription: Stripe.Subscription): string | undefined {
+  const fromItem = derivePlanFromPrice(subscription.items?.data?.[0]?.price);
+  if (fromItem) return fromItem;
+  const metaPlan = subscription.metadata?.plan;
+  return typeof metaPlan === "string" && metaPlan ? metaPlan : undefined;
+}
+
+function getNextChargeAmount(
+  subscriptionPlan: string | undefined | null,
+  pendingPlan: string | undefined | null,
+  pendingPlanAmount: number | undefined | null,
+  cancelAtPeriodEnd: boolean
+): number | null {
+  if (cancelAtPeriodEnd) return 0;
+  if (typeof pendingPlanAmount === "number" && pendingPlanAmount > 0) {
+    return pendingPlanAmount;
+  }
+  if (isPaidPlan(pendingPlan)) {
+    return PLAN_CONFIG[pendingPlan].amount;
+  }
+  if (isPaidPlan(subscriptionPlan)) {
+    return PLAN_CONFIG[subscriptionPlan].amount;
+  }
+  if (subscriptionPlan === "trial") {
+    return PLAN_CONFIG.monthly.amount;
+  }
+  return null;
+}
+
 /* =========================================================
    HEALTH CHECK
    ========================================================= */
@@ -736,120 +808,8 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
       hasCurrentSubscription &&
       isPaidPlan(plan)
     ) {
-      /*
-       * Se esiste già un cambio di piano programmato,
-       * impediamo un secondo pagamento.
-       */
-
-      if (currentData?.pendingPlan) {
-        return res.status(400).json({
-          error:
-            `Hai già programmato il passaggio al piano ${currentData.pendingPlan}. Attendi che il cambio venga completato prima di selezionare un altro piano.`,
-        });
-      }
-
-      /*
-       * Se l'utente clicca sul piano che ha già,
-       * non serve creare un altro pagamento.
-       */
-
-      if (
-        currentData.subscriptionPlan === plan &&
-        currentData.subscriptionStatus === "active"
-      ) {
-        return res.status(400).json({
-          error:
-            "Sei già abbonato a questo piano.",
-        });
-      }
-
-      /*
-       * Recuperiamo la subscription per ottenere
-       * il customer Stripe.
-       */
-
-      const subscription =
-        await stripe.subscriptions.retrieve(
-          currentData.stripeSubscriptionId as string
-        );
-
-      const customerId =
-        typeof subscription.customer === "string"
-          ? subscription.customer
-          : subscription.customer.id;
-
-      /*
-       * Checkout UNA TANTUM.
-       *
-       * Questo pagamento è il pagamento anticipato
-       * del prossimo periodo.
-       *
-       * Non modifica immediatamente la subscription.
-       */
-
-      const config = PLAN_CONFIG[plan];
-
-      const session =
-        await stripe.checkout.sessions.create({
-          payment_method_types: [
-            "card",
-            "paypal",
-            "klarna",
-          ],
-
-          mode: "payment",
-
-          line_items: [
-            {
-              price_data: {
-                currency: "eur",
-
-                product_data: {
-                  name:
-                    `Echora — ${config.label}`,
-
-                  description:
-                    `${config.description}. Il piano inizierà alla fine del periodo attuale.`,
-                },
-
-                unit_amount: config.amount,
-              },
-
-              quantity: 1,
-            },
-          ],
-
-          customer: customerId,
-
-          client_reference_id: userId,
-
-          metadata: {
-            userId,
-            plan,
-            changeType: "scheduled_plan_change",
-            subscriptionId: subscription.id,
-          },
-
-          custom_text: {
-            submit: {
-              message:
-                `Paghi ora ${(
-                  config.amount / 100
-                ).toFixed(2).replace(".", ",")} €. Il nuovo piano inizierà quando terminerà il tuo periodo attuale.`,
-            },
-          },
-
-          success_url:
-            `${appUrl}/#payment-success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
-
-          cancel_url:
-            `${appUrl}/#payment-cancelled`,
-        });
-
-      return res.json({
-        url: session.url,
-        sessionId: session.id,
-      });
+      const result = await executeSchedulePlanChange(stripe, userId, plan);
+      return res.json(result);
     }
 
     /* =====================================================
@@ -1122,6 +1082,12 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
       sessionId: session.id,
     });
   } catch (err: any) {
+    if (err instanceof PlanChangeError) {
+      return res.status(err.statusCode).json({
+        error: err.message,
+      });
+    }
+
     console.error(
       "Errore creazione Stripe Checkout Session:",
       err?.message || err
@@ -1225,273 +1191,262 @@ app.post("/api/create-portal-session", verifySameOriginOnApi, apiSensitiveLimite
 });
 
 /* =========================================================
-   SCHEDULE FUTURE PLAN
+   SCHEDULE FUTURE PLAN (STRIPE SUBSCRIPTION SCHEDULES)
    ========================================================= */
 
 async function scheduleFuturePlan(
   stripe: Stripe,
   userId: string,
   subscription: Stripe.Subscription,
-  newPlan: PaidPlan,
-  paymentIntentId: string
+  newPlan: PaidPlan
 ) {
-  const config =
-    PLAN_CONFIG[newPlan];
+  const config = PLAN_CONFIG[newPlan];
 
-  const currentPeriodEndTs =
-    (subscription as any).current_period_end;
-
-  if (!currentPeriodEndTs) {
-    throw new Error(
-      "Impossibile determinare la fine del periodo attuale."
+  if (subscription.status !== "active" && subscription.status !== "trialing") {
+    throw new PlanChangeError(
+      400,
+      "L'abbonamento attuale non è attivo. Regolarizza o riattiva l'abbonamento prima di cambiare piano."
     );
   }
 
-  const startsAt =
-    new Date(
-      currentPeriodEndTs * 1000
-    ).toISOString();
+  if (subscription.cancel_at_period_end) {
+    throw new PlanChangeError(
+      400,
+      "Il tuo abbonamento è impostato per essere annullato alla scadenza. Riattiva il rinnovo dal portale Stripe prima di programmare un cambio piano."
+    );
+  }
 
-  /*
-   * Creiamo un invoice item negativo sul customer,
-   * associato alla subscription.
-   *
-   * Quando arriverà la prima fattura del nuovo periodo,
-   * questo credito compenserà il pagamento che l'utente
-   * ha già effettuato nel Checkout.
-   */
+  const currentPlan = derivePlanFromSubscription(subscription);
+  if (currentPlan === newPlan && subscription.status === "active") {
+    throw new PlanChangeError(400, "Sei già abbonato a questo piano.");
+  }
 
-  const invoiceItem =
-    await stripe.invoiceItems.create({
-      customer:
-        typeof subscription.customer === "string"
-          ? subscription.customer
-          : subscription.customer.id,
+  const currentPeriodEndTs = getSubscriptionPeriodEndTs(subscription);
+  if (!currentPeriodEndTs) {
+    throw new Error("Impossibile determinare la fine del periodo attuale.");
+  }
 
-      subscription:
-        subscription.id,
+  let scheduleId: string | null = null;
+  let createdNewSchedule = false;
+  const existingScheduleRef = (subscription as any).schedule;
 
-      currency: "eur",
+  if (existingScheduleRef) {
+    const candidateId =
+      typeof existingScheduleRef === "string"
+        ? existingScheduleRef
+        : existingScheduleRef.id;
 
-      amount:
-        -config.amount,
-
-      description:
-        `Pagamento anticipato Echora — ${config.label}`,
-
-      metadata: {
-        userId,
-        plan: newPlan,
-        type: "prepaid_future_plan",
-        paymentIntentId,
-      },
-    });
-
-  /*
-   * Se esiste già uno schedule lo riutilizziamo.
-   * Altrimenti lo creiamo dalla subscription attuale.
-   */
-
-  let scheduleId:
-    | string
-    | null = null;
-
-  const existingSchedule =
-    (subscription as any).schedule;
-
-  if (existingSchedule) {
-    scheduleId =
-      typeof existingSchedule === "string"
-        ? existingSchedule
-        : existingSchedule.id;
+    if (candidateId) {
+      const existingSchedule = await stripe.subscriptionSchedules.retrieve(candidateId);
+      if (existingSchedule.status === "active" || existingSchedule.status === "not_started") {
+        const currentPhaseEnd = existingSchedule.current_phase?.end_date || currentPeriodEndTs;
+        const futurePhases = (existingSchedule.phases || []).filter(
+          (p) => p.start_date >= currentPhaseEnd
+        );
+        if (futurePhases.length > 0) {
+          throw new PlanChangeError(
+            409,
+            "Esiste già un cambio piano programmato su Stripe. Annulla prima quello esistente se desideri cambiarlo."
+          );
+        }
+        scheduleId = existingSchedule.id;
+      }
+    }
   }
 
   if (!scheduleId) {
-    const schedule =
-      await stripe.subscriptionSchedules.create({
-        from_subscription:
-          subscription.id,
-      });
-
-    scheduleId =
-      schedule.id;
+    const createdSchedule = await stripe.subscriptionSchedules.create({
+      from_subscription: subscription.id,
+    });
+    scheduleId = createdSchedule.id;
+    createdNewSchedule = true;
   }
 
-  const schedule =
-    await stripe.subscriptionSchedules.retrieve(
-      scheduleId
-    );
+  try {
+    const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+    const currentPhase = schedule.current_phase;
 
-  /*
-   * Manteniamo la fase attuale esattamente com'è.
-   * La nuova fase comincia alla fine del periodo attuale.
-   */
+    if (!currentPhase) {
+      throw new Error("Impossibile determinare la fase attuale della subscription.");
+    }
 
-  const currentPhase =
-    schedule.current_phase;
+    const currentPhaseStart = currentPhase.start_date;
+    const currentPhaseEnd = currentPhase.end_date;
+    const activePhase =
+      (schedule.phases || []).find(
+        (p) => p.start_date === currentPhaseStart && p.end_date === currentPhaseEnd
+      ) || schedule.phases?.[schedule.phases.length - 1];
 
-  if (!currentPhase) {
-    throw new Error(
-      "Impossibile determinare la fase attuale della subscription."
-    );
-  }
+    const currentItem = activePhase?.items?.[0] || subscription.items?.data?.[0];
+    const currentPrice = currentItem?.price;
+    if (!currentPrice) {
+      throw new Error("Impossibile determinare il prezzo attuale della subscription.");
+    }
 
-  const currentPhaseStart =
-    currentPhase.start_date;
+    const currentPriceId =
+      typeof currentPrice === "string" ? currentPrice : currentPrice.id;
+    const currentQuantity = currentItem?.quantity ?? 1;
 
-  const currentPhaseEnd =
-    currentPhase.end_date;
-
-  const currentItems =
-    schedule.phases?.[0]?.items ||
-    [];
-
-  /*
-   * Recuperiamo il Price attuale.
-   */
-
-  const currentPrice =
-    currentItems[0]?.price;
-
-  if (!currentPrice) {
-    throw new Error(
-      "Impossibile determinare il prezzo attuale della subscription."
-    );
-  }
-
-  /*
-   * Creiamo il Price del nuovo piano.
-   *
-   * Viene usato soltanto nella fase futura.
-   */
-
-  const newPrice =
-    await stripe.prices.create({
+    const newPrice = await stripe.prices.create({
       currency: "eur",
-
-      unit_amount:
-        config.amount,
-
+      unit_amount: config.amount,
       recurring: {
-        interval:
-          config.interval,
-
-        interval_count:
-          config.intervalCount,
+        interval: config.interval,
+        interval_count: config.intervalCount,
       },
-
       product_data: {
-        name:
-          `Echora — ${config.label}`,
+        name: `Echora — ${config.label}`,
       },
-
       metadata: {
-        echoraPlan:
-          newPlan,
+        echoraPlan: newPlan,
       },
     });
 
-  /*
-   * Fase attuale:
-   * stesso prezzo, stessa quantità.
-   *
-   * Fase futura:
-   * nuovo prezzo.
-   */
-
-  const phases: any[] = [
-    {
-      start_date:
-        currentPhaseStart,
-
-      end_date:
-        currentPhaseEnd,
-
-      items: [
-        {
-          price:
-            typeof currentPrice === "string"
-              ? currentPrice
-              : currentPrice.id,
-
-          quantity: 1,
+    const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
+      {
+        start_date: currentPhaseStart,
+        end_date: currentPhaseEnd,
+        items: [
+          {
+            price: currentPriceId,
+            quantity: currentQuantity,
+          },
+        ],
+        proration_behavior: "none",
+        ...(activePhase?.trial_end ? { trial_end: activePhase.trial_end } : {}),
+        metadata: {
+          userId,
+          ...(currentPlan ? { plan: currentPlan } : {}),
         },
-      ],
-    },
-
-    {
-      start_date:
-        currentPhaseEnd,
-
-      items: [
-        {
-          price:
-            newPrice.id,
-
-          quantity: 1,
+      },
+      {
+        start_date: currentPhaseEnd,
+        duration: {
+          interval: config.interval,
+          interval_count: config.intervalCount,
         },
-      ],
-    },
-  ];
+        items: [
+          {
+            price: newPrice.id,
+            quantity: 1,
+          },
+        ],
+        proration_behavior: "none",
+        metadata: {
+          userId,
+          plan: newPlan,
+          ...(currentPlan ? { scheduledFromPlan: currentPlan } : {}),
+        },
+      },
+    ];
 
-  await stripe.subscriptionSchedules.update(
-    scheduleId,
-    {
+    await stripe.subscriptionSchedules.update(scheduleId, {
       phases,
+      end_behavior: "release",
+      proration_behavior: "none",
+      metadata: {
+        userId,
+        scheduledPlan: newPlan,
+        ...(currentPlan ? { previousPlan: currentPlan } : {}),
+        subscriptionId: subscription.id,
+      },
+    });
 
-      end_behavior:
-        "release",
+    const startsAt = new Date(currentPhaseEnd * 1000).toISOString();
+    const pendingData: Record<string, any> = {
+      ...(currentPlan ? { subscriptionPlan: currentPlan } : {}),
+      subscriptionPeriodEnd: startsAt,
+      pendingPlan: newPlan,
+      pendingPlanAmount: config.amount,
+      pendingPlanPaymentIntentId: null,
+      pendingPlanStartsAt: startsAt,
+      pendingPlanInvoiceItemId: null,
+      stripeScheduleId: scheduleId,
+      updatedAt: new Date().toISOString(),
+    };
 
-      proration_behavior:
-        "none",
-    } as any
-  );
+    subscriptionsMap.set(userId, {
+      ...(subscriptionsMap.get(userId) || {
+        subscriptionStatus: subscription.status,
+        updatedAt: new Date().toISOString(),
+      }),
+      ...pendingData,
+    } as any);
 
-  const pendingData = {
-    pendingPlan:
-      newPlan,
+    await safeFirestoreSet(userId, pendingData, true);
 
-    pendingPlanAmount:
-      config.amount,
-
-    pendingPlanPaymentIntentId:
-      paymentIntentId,
-
-    pendingPlanStartsAt:
-      startsAt,
-
-    pendingPlanInvoiceItemId:
-      invoiceItem.id,
-
-    stripeScheduleId:
+    return {
+      scheduled: true,
       scheduleId,
+      currentPlan: currentPlan || null,
+      pendingPlan: newPlan,
+      pendingPlanAmount: config.amount,
+      pendingPlanStartsAt: startsAt,
+      nextChargeAmount: config.amount,
+    };
+  } catch (err) {
+    if (createdNewSchedule && scheduleId) {
+      try {
+        await stripe.subscriptionSchedules.release(scheduleId);
+      } catch {}
+    }
+    throw err;
+  }
+}
 
-    updatedAt:
-      new Date().toISOString(),
-  };
+async function executeSchedulePlanChange(
+  stripe: Stripe,
+  userId: string,
+  newPlan: PaidPlan
+) {
+  if (activePlanChangeUsers.has(userId)) {
+    throw new PlanChangeError(
+      409,
+      "Un'operazione di cambio piano è già in corso. Attendi qualche secondo."
+    );
+  }
 
-  subscriptionsMap.set(userId, {
-    ...(subscriptionsMap.get(userId) || {
-      subscriptionStatus:
-        subscription.status,
-      updatedAt:
-        new Date().toISOString(),
-    }),
+  activePlanChangeUsers.add(userId);
+  try {
+    const currentData = await getSubscriptionData(userId);
+    if (!currentData?.stripeSubscriptionId) {
+      throw new PlanChangeError(
+        400,
+        "Nessun abbonamento Stripe attivo trovato per questo account."
+      );
+    }
 
-    ...pendingData,
-  } as any);
+    if (currentData.pendingPlan) {
+      throw new PlanChangeError(
+        409,
+        `Hai già programmato il passaggio al piano ${currentData.pendingPlan}. Annulla prima il cambio programmato se desideri selezionare un altro piano.`
+      );
+    }
 
-  await safeFirestoreSet(
-    userId,
-    pendingData
-  );
+    const subscription = await stripe.subscriptions.retrieve(
+      currentData.stripeSubscriptionId,
+      { expand: ["items.data.price"] }
+    );
 
-  return {
-    scheduleId,
-    invoiceItemId:
-      invoiceItem.id,
-    startsAt,
-  };
+    const customerId =
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer?.id;
+
+    if (
+      (currentData.stripeCustomerId && customerId && currentData.stripeCustomerId !== customerId) ||
+      (subscription.metadata?.userId && subscription.metadata.userId !== userId)
+    ) {
+      throw new PlanChangeError(
+        403,
+        "Verifica proprietà abbonamento fallita."
+      );
+    }
+
+    return await scheduleFuturePlan(stripe, userId, subscription, newPlan);
+  } finally {
+    activePlanChangeUsers.delete(userId);
+  }
 }
 
 /* =========================================================
@@ -1501,74 +1456,57 @@ async function scheduleFuturePlan(
 async function cancelPendingPlan(
   stripe: Stripe,
   userId: string,
-  data: any
+  data: any,
+  liveSubscription?: Stripe.Subscription | null
 ) {
-  /*
-   * Se non c'è un piano futuro, non facciamo nulla.
-   */
+  const attachedScheduleRef = (liveSubscription as any)?.schedule;
+  const attachedScheduleId =
+    typeof attachedScheduleRef === "string"
+      ? attachedScheduleRef
+      : attachedScheduleRef?.id;
 
-  if (!data?.pendingPlan) {
+  const scheduleId = data?.stripeScheduleId || attachedScheduleId;
+
+  if (!data?.pendingPlan && !scheduleId) {
     return;
   }
 
-  /*
-   * Se il pagamento futuro esiste, lo rimborsiamo.
-   */
-
-  if (data.pendingPlanPaymentIntentId) {
+  // Legacy defensive cleanup only if an old upfront payment intent or invoice item existed
+  if (data?.pendingPlanPaymentIntentId) {
     try {
       await stripe.refunds.create({
-        payment_intent:
-          data.pendingPlanPaymentIntentId,
+        payment_intent: data.pendingPlanPaymentIntentId,
       });
     } catch (refundError: any) {
-      /*
-       * Se il pagamento è già stato rimborsato,
-       * non blocchiamo tutto.
-       */
-
       console.log(
         "Refund pending plan note:",
-        refundError?.message ||
-          refundError
+        refundError?.message || refundError
       );
     }
   }
 
-  /*
-   * Eliminiamo l'eventuale invoice item negativo.
-   */
-
-  if (data.pendingPlanInvoiceItemId) {
+  if (data?.pendingPlanInvoiceItemId) {
     try {
-      await stripe.invoiceItems.del(
-        data.pendingPlanInvoiceItemId
-      );
+      await stripe.invoiceItems.del(data.pendingPlanInvoiceItemId);
     } catch (invoiceError: any) {
       console.log(
         "Delete pending invoice item note:",
-        invoiceError?.message ||
-          invoiceError
+        invoiceError?.message || invoiceError
       );
     }
   }
 
-  /*
-   * Se esiste uno schedule, lo cancelliamo.
-   *
-   * La subscription attuale rimane nel suo periodo.
-   */
-
-  if (data.stripeScheduleId) {
+  // Release the Subscription Schedule without canceling the active subscription
+  if (scheduleId) {
     try {
-      await stripe.subscriptionSchedules.release(
-        data.stripeScheduleId
-      );
+      const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+      if (schedule.status === "active" || schedule.status === "not_started") {
+        await stripe.subscriptionSchedules.release(scheduleId);
+      }
     } catch (scheduleError: any) {
       console.log(
         "Release schedule note:",
-        scheduleError?.message ||
-          scheduleError
+        scheduleError?.message || scheduleError
       );
     }
   }
@@ -1580,28 +1518,149 @@ async function cancelPendingPlan(
     pendingPlanStartsAt: null,
     pendingPlanInvoiceItemId: null,
     stripeScheduleId: null,
-    updatedAt:
-      new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
-  const existing =
-    subscriptionsMap.get(userId);
+  const existing = subscriptionsMap.get(userId);
 
   if (existing) {
-    subscriptionsMap.set(
-      userId,
-      {
-        ...existing,
-        ...clearData,
-      } as any
-    );
+    subscriptionsMap.set(userId, {
+      ...existing,
+      ...clearData,
+    } as any);
   }
 
-  await safeFirestoreSet(
-    userId,
-    clearData
-  );
+  await safeFirestoreSet(userId, clearData, true);
 }
+
+app.post(
+  "/api/schedule-plan-change",
+  verifySameOriginOnApi,
+  apiSensitiveLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "Utente non autenticato" });
+      }
+
+      if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+        return res.status(400).json({ error: "Corpo della richiesta non valido." });
+      }
+
+      const plan = req.body?.plan ?? req.body?.newPlan;
+      if (!isPaidPlan(plan)) {
+        return res.status(400).json({ error: "Piano non valido per il cambio programmato." });
+      }
+
+      const stripe = getStripe();
+      if (!stripe) {
+        return res.status(503).json({
+          error: "Servizio pagamenti temporaneamente non configurato.",
+        });
+      }
+
+      const result = await executeSchedulePlanChange(stripe, userId, plan);
+      return res.json(result);
+    } catch (err: any) {
+      if (err instanceof PlanChangeError) {
+        return res.status(err.statusCode).json({ error: err.message });
+      }
+      console.error("Errore programmazione cambio piano:", err?.message || err);
+      return res.status(500).json({
+        error: "Impossibile programmare il cambio piano al momento. Riprova tra qualche istante.",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/cancel-scheduled-plan-change",
+  verifySameOriginOnApi,
+  apiSensitiveLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res) => {
+    const userId = req.user?.uid;
+    if (!userId) {
+      return res.status(401).json({ error: "Utente non autenticato" });
+    }
+
+    if (activePlanChangeUsers.has(userId)) {
+      return res.status(409).json({
+        error: "Un'operazione di modifica piano è già in corso. Attendi qualche secondo.",
+      });
+    }
+
+    activePlanChangeUsers.add(userId);
+    try {
+      const stripe = getStripe();
+      if (!stripe) {
+        return res.status(503).json({
+          error: "Servizio pagamenti temporaneamente non configurato.",
+        });
+      }
+
+      const currentData = await getSubscriptionData(userId);
+      if (!currentData) {
+        return res.status(404).json({ error: "Nessun dato abbonamento trovato." });
+      }
+
+      let liveSubscription: Stripe.Subscription | null = null;
+      if (currentData.stripeSubscriptionId) {
+        liveSubscription = await stripe.subscriptions.retrieve(
+          currentData.stripeSubscriptionId,
+          { expand: ["items.data.price"] }
+        );
+        const customerId =
+          typeof liveSubscription.customer === "string"
+            ? liveSubscription.customer
+            : liveSubscription.customer?.id;
+        if (
+          (currentData.stripeCustomerId && customerId && currentData.stripeCustomerId !== customerId) ||
+          (liveSubscription.metadata?.userId && liveSubscription.metadata.userId !== userId)
+        ) {
+          return res.status(403).json({ error: "Verifica proprietà abbonamento fallita." });
+        }
+      }
+
+      const attachedSchedule = (liveSubscription as any)?.schedule;
+      if (!currentData.pendingPlan && !currentData.stripeScheduleId && !attachedSchedule) {
+        return res.status(400).json({
+          error: "Non è presente alcun cambio piano programmato da annullare.",
+        });
+      }
+
+      await cancelPendingPlan(stripe, userId, currentData, liveSubscription);
+
+      const refreshed = await getSubscriptionData(userId);
+      const currentPlan = liveSubscription
+        ? derivePlanFromSubscription(liveSubscription) || refreshed?.subscriptionPlan || null
+        : refreshed?.subscriptionPlan || null;
+
+      return res.json({
+        canceled: true,
+        subscriptionStatus: liveSubscription?.status || refreshed?.subscriptionStatus || "active",
+        subscriptionPlan: currentPlan,
+        subscriptionPeriodEnd: refreshed?.subscriptionPeriodEnd || null,
+        nextChargeAmount: getNextChargeAmount(
+          currentPlan,
+          null,
+          null,
+          Boolean(refreshed?.cancelAtPeriodEnd)
+        ),
+        message: "Cambio piano programmato annullato. Il tuo abbonamento attuale rimane regolarmente attivo.",
+      });
+    } catch (err: any) {
+      console.error("Errore annullamento cambio piano:", err?.message || err);
+      return res.status(500).json({
+        error: "Impossibile annullare il cambio piano programmato. Riprova tra qualche istante.",
+      });
+    } finally {
+      activePlanChangeUsers.delete(userId);
+    }
+  }
+);
 
 /* =========================================================
    STRIPE WEBHOOK
@@ -1679,40 +1738,8 @@ app.post("/api/webhook", async (req, res) => {
 
       const plan = session.metadata?.plan;
 
-      // One-time scheduled plan change payment
-      if (
-        session.metadata?.changeType === "scheduled_plan_change" &&
-        userId &&
-        isPaidPlan(plan)
-      ) {
-        if (session.payment_status !== "paid") {
-          console.log("Checkout future plan non ancora pagato:", session.id);
-          return res.json({ received: true });
-        }
-
-        const subscriptionId = session.metadata?.subscriptionId;
-        if (!subscriptionId) {
-          throw new Error("Subscription ID mancante nel cambio piano.");
-        }
-
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-        const paymentIntentId =
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : session.payment_intent?.id;
-
-        if (!paymentIntentId) {
-          throw new Error("PaymentIntent mancante nel pagamento del cambio piano.");
-        }
-
-        const existing = await getSubscriptionData(userId);
-        if (existing?.pendingPlan) {
-          await markStripeEventProcessed(event);
-          return res.json({ received: true });
-        }
-
-        await scheduleFuturePlan(stripe, userId, subscription, plan, paymentIntentId);
+      // Ignore legacy scheduled_plan_change one-time checkout if any old link completes
+      if (session.metadata?.changeType === "scheduled_plan_change") {
         await markStripeEventProcessed(event);
         return res.json({ received: true });
       }
@@ -1760,9 +1787,7 @@ app.post("/api/webhook", async (req, res) => {
               subscriptionStatus = subscription.status;
             }
 
-            const periodEndTs =
-              (subscription as any).current_period_end ||
-              (subscription as any).trial_end;
+            const periodEndTs = getSubscriptionPeriodEndTs(subscription);
 
             if (periodEndTs) {
               periodEnd = new Date(periodEndTs * 1000).toISOString();
@@ -1862,9 +1887,7 @@ app.post("/api/webhook", async (req, res) => {
           ? rawStatus
           : "canceled";
 
-      const periodEndTs =
-        (subscription as any).current_period_end ||
-        (subscription as any).trial_end;
+      const periodEndTs = getSubscriptionPeriodEndTs(subscription);
 
       const periodEnd = periodEndTs
         ? new Date(periodEndTs * 1000).toISOString()
@@ -1872,35 +1895,12 @@ app.post("/api/webhook", async (req, res) => {
 
       const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
 
-      let planToStore = existing?.subscriptionPlan || subscription.metadata?.plan;
-      let pendingPlan = existing?.pendingPlan;
-
-      if (existing?.pendingPlan && existing?.pendingPlanStartsAt) {
-        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
-        if (Date.now() >= startsAt) {
-          planToStore = existing.pendingPlan;
-          pendingPlan = undefined;
-
-          const clearPending = {
-            pendingPlan: null,
-            pendingPlanAmount: null,
-            pendingPlanPaymentIntentId: null,
-            pendingPlanStartsAt: null,
-            pendingPlanInvoiceItemId: null,
-            stripeScheduleId: null,
-          };
-
-          await safeFirestoreSet(userId, clearPending, true);
-        }
-      }
-
-      if (cancelAtPeriodEnd && existing?.pendingPlan && existing.pendingPlanStartsAt) {
-        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
-        if (Date.now() < startsAt) {
-          await cancelPendingPlan(stripe, userId, existing);
-          pendingPlan = undefined;
-        }
-      }
+      const derivedPlan = derivePlanFromSubscription(subscription);
+      let planToStore = derivedPlan || existing?.subscriptionPlan || subscription.metadata?.plan;
+      let pendingPlan: string | null | undefined = existing?.pendingPlan;
+      const scheduleRef = (subscription as any).schedule;
+      const attachedScheduleId =
+        typeof scheduleRef === "string" ? scheduleRef : scheduleRef?.id || null;
 
       const subUpdate: Record<string, any> = {
         subscriptionStatus: status,
@@ -1911,6 +1911,39 @@ app.post("/api/webhook", async (req, res) => {
         lastStripeEventCreated: event.created,
         updatedAt: new Date().toISOString(),
       };
+
+      if (
+        existing?.pendingPlan &&
+        derivedPlan === existing.pendingPlan &&
+        (status === "active" || status === "trialing")
+      ) {
+        planToStore = existing.pendingPlan;
+        pendingPlan = null;
+        subUpdate.pendingPlan = null;
+        subUpdate.pendingPlanAmount = null;
+        subUpdate.pendingPlanPaymentIntentId = null;
+        subUpdate.pendingPlanStartsAt = null;
+        subUpdate.pendingPlanInvoiceItemId = null;
+        subUpdate.stripeScheduleId = attachedScheduleId;
+      } else if (
+        existing?.pendingPlan &&
+        derivedPlan === existing.pendingPlan &&
+        (status === "past_due" || status === "incomplete" || status === "unpaid")
+      ) {
+        // Payment failed right when the scheduled transition occurred; keep pendingPlan info visible until invoice is paid
+        planToStore = existing.subscriptionPlan || derivedPlan;
+      }
+
+      if (cancelAtPeriodEnd && existing?.pendingPlan) {
+        await cancelPendingPlan(stripe, userId, existing, subscription);
+        pendingPlan = null;
+        subUpdate.pendingPlan = null;
+        subUpdate.pendingPlanAmount = null;
+        subUpdate.pendingPlanPaymentIntentId = null;
+        subUpdate.pendingPlanStartsAt = null;
+        subUpdate.pendingPlanInvoiceItemId = null;
+        subUpdate.stripeScheduleId = null;
+      }
 
       if (planToStore) {
         subUpdate.subscriptionPlan = planToStore;
@@ -1929,6 +1962,167 @@ app.post("/api/webhook", async (req, res) => {
       await safeFirestoreSet(userId, subUpdate, true);
       await markStripeEventProcessed(event);
 
+      return res.json({ received: true });
+    }
+
+    /* =====================================================
+       SUBSCRIPTION SCHEDULES
+       ===================================================== */
+
+    if (
+      event.type === "subscription_schedule.created" ||
+      event.type === "subscription_schedule.updated" ||
+      event.type === "subscription_schedule.released" ||
+      event.type === "subscription_schedule.canceled" ||
+      event.type === "subscription_schedule.completed"
+    ) {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      const customerId =
+        typeof schedule.customer === "string"
+          ? schedule.customer
+          : schedule.customer?.id;
+
+      let userId = schedule.metadata?.userId;
+      if (!userId) {
+        userId = await findUserIdByStripeCustomerId(customerId, stripe);
+      }
+
+      if (!userId) {
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
+      }
+
+      const existing = await getSubscriptionData(userId);
+      const linkedSubId =
+        (typeof (schedule as any).released_subscription === "string"
+          ? (schedule as any).released_subscription
+          : (schedule as any).released_subscription?.id) ||
+        (typeof schedule.subscription === "string"
+          ? schedule.subscription
+          : schedule.subscription?.id) ||
+        existing?.stripeSubscriptionId;
+
+      let liveSub: Stripe.Subscription | null = null;
+      if (linkedSubId) {
+        try {
+          liveSub = await stripe.subscriptions.retrieve(linkedSubId, {
+            expand: ["items.data.price"],
+          });
+        } catch {}
+      }
+
+      if (
+        event.type === "subscription_schedule.released" ||
+        event.type === "subscription_schedule.canceled" ||
+        event.type === "subscription_schedule.completed" ||
+        schedule.status === "released" ||
+        schedule.status === "canceled" ||
+        schedule.status === "completed"
+      ) {
+        const livePlan = liveSub
+          ? derivePlanFromSubscription(liveSub) || existing?.subscriptionPlan
+          : existing?.subscriptionPlan;
+        const livePeriodEndTs = liveSub ? getSubscriptionPeriodEndTs(liveSub) : undefined;
+        const liveStatus = liveSub?.status;
+
+        const scheduleClearUpdate: Record<string, any> = {
+          ...(livePlan ? { subscriptionPlan: livePlan } : {}),
+          ...(livePeriodEndTs
+            ? { subscriptionPeriodEnd: new Date(livePeriodEndTs * 1000).toISOString() }
+            : {}),
+          ...(liveStatus ? { subscriptionStatus: liveStatus } : {}),
+          pendingPlan: null,
+          pendingPlanAmount: null,
+          pendingPlanPaymentIntentId: null,
+          pendingPlanStartsAt: null,
+          pendingPlanInvoiceItemId: null,
+          stripeScheduleId: null,
+          updatedAt: new Date().toISOString(),
+        };
+
+        subscriptionsMap.set(userId, {
+          ...(existing || { subscriptionStatus: "active" }),
+          ...scheduleClearUpdate,
+        } as any);
+        await safeFirestoreSet(userId, scheduleClearUpdate, true);
+        await markStripeEventProcessed(event);
+        return res.json({ received: true });
+      }
+
+      // Active / updated schedule: check if a future phase exists beyond current_phase
+      const currentPhase = schedule.current_phase;
+      const nextPhase = currentPhase
+        ? (schedule.phases || []).find((p) => p.start_date >= currentPhase.end_date)
+        : undefined;
+
+      if (nextPhase) {
+        const nextPlanFromMeta = nextPhase.metadata?.plan;
+        const nextPrice = nextPhase.items?.[0]?.price;
+        let nextPlan: PaidPlan | undefined = isPaidPlan(nextPlanFromMeta)
+          ? nextPlanFromMeta
+          : undefined;
+        if (!nextPlan && typeof nextPrice === "string") {
+          try {
+            const retrievedPrice = await stripe.prices.retrieve(nextPrice);
+            nextPlan = derivePlanFromPrice(retrievedPrice);
+          } catch {}
+        } else if (!nextPlan && nextPrice && typeof nextPrice === "object") {
+          nextPlan = derivePlanFromPrice(nextPrice as Stripe.Price);
+        }
+
+        if (nextPlan) {
+          const startsAt = new Date(nextPhase.start_date * 1000).toISOString();
+          const currentPlan = liveSub
+            ? derivePlanFromSubscription(liveSub) || existing?.subscriptionPlan
+            : existing?.subscriptionPlan;
+          const scheduleActiveUpdate: Record<string, any> = {
+            ...(currentPlan ? { subscriptionPlan: currentPlan } : {}),
+            pendingPlan: nextPlan,
+            pendingPlanAmount: PLAN_CONFIG[nextPlan].amount,
+            pendingPlanPaymentIntentId: null,
+            pendingPlanStartsAt: startsAt,
+            pendingPlanInvoiceItemId: null,
+            stripeScheduleId: schedule.id,
+            updatedAt: new Date().toISOString(),
+          };
+          subscriptionsMap.set(userId, {
+            ...(existing || { subscriptionStatus: liveSub?.status || "active" }),
+            ...scheduleActiveUpdate,
+          } as any);
+          await safeFirestoreSet(userId, scheduleActiveUpdate, true);
+        }
+      } else if (liveSub) {
+        // Schedule has entered its final phase
+        const livePlan = derivePlanFromSubscription(liveSub);
+        if (
+          livePlan &&
+          existing?.pendingPlan === livePlan &&
+          (liveSub.status === "active" || liveSub.status === "trialing")
+        ) {
+          const livePeriodEndTs = getSubscriptionPeriodEndTs(liveSub);
+          const transitionUpdate: Record<string, any> = {
+            subscriptionStatus: liveSub.status,
+            subscriptionPlan: livePlan,
+            ...(livePeriodEndTs
+              ? { subscriptionPeriodEnd: new Date(livePeriodEndTs * 1000).toISOString() }
+              : {}),
+            pendingPlan: null,
+            pendingPlanAmount: null,
+            pendingPlanPaymentIntentId: null,
+            pendingPlanStartsAt: null,
+            pendingPlanInvoiceItemId: null,
+            stripeScheduleId: schedule.id,
+            updatedAt: new Date().toISOString(),
+          };
+          subscriptionsMap.set(userId, {
+            ...(existing || {}),
+            ...transitionUpdate,
+          } as any);
+          await safeFirestoreSet(userId, transitionUpdate, true);
+        }
+      }
+
+      await markStripeEventProcessed(event);
       return res.json({ received: true });
     }
 
@@ -1963,16 +2157,19 @@ app.post("/api/webhook", async (req, res) => {
         return res.json({ received: true, stale: true });
       }
 
-      if (existing?.pendingPlan && existing.pendingPlanStartsAt) {
-        const startsAt = new Date(existing.pendingPlanStartsAt).getTime();
-        if (Date.now() < startsAt) {
-          await cancelPendingPlan(stripe, userId, existing);
-        }
+      if (existing?.pendingPlan || existing?.stripeScheduleId) {
+        await cancelPendingPlan(stripe, userId, existing);
       }
 
       const subDelete = {
         subscriptionStatus: "canceled",
         cancelAtPeriodEnd: false,
+        pendingPlan: null,
+        pendingPlanAmount: null,
+        pendingPlanPaymentIntentId: null,
+        pendingPlanStartsAt: null,
+        pendingPlanInvoiceItemId: null,
+        stripeScheduleId: null,
         lastStripeEventCreated: event.created,
         updatedAt: new Date().toISOString(),
       };
@@ -2041,13 +2238,18 @@ app.post("/api/webhook", async (req, res) => {
       }
 
       if (subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        const periodEndTs =
-          (subscription as any).current_period_end ||
-          (subscription as any).trial_end;
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+          expand: ["items.data.price"],
+        });
+        const periodEndTs = getSubscriptionPeriodEndTs(subscription);
         const periodEnd = periodEndTs
           ? new Date(periodEndTs * 1000).toISOString()
           : existing?.subscriptionPeriodEnd || null;
+
+        const livePlan = derivePlanFromSubscription(subscription);
+        const scheduleRef = (subscription as any).schedule;
+        const attachedScheduleId =
+          typeof scheduleRef === "string" ? scheduleRef : scheduleRef?.id || null;
 
         const paidUpdate: Record<string, any> = {
           subscriptionStatus: subscription.status === "trialing" ? "trialing" : "active",
@@ -2057,6 +2259,21 @@ app.post("/api/webhook", async (req, res) => {
           lastStripeEventCreated: event.created,
           updatedAt: new Date().toISOString(),
         };
+
+        if (livePlan) {
+          paidUpdate.subscriptionPlan = livePlan;
+        }
+
+        if (existing?.pendingPlan && livePlan === existing.pendingPlan) {
+          paidUpdate.pendingPlan = null;
+          paidUpdate.pendingPlanAmount = null;
+          paidUpdate.pendingPlanPaymentIntentId = null;
+          paidUpdate.pendingPlanStartsAt = null;
+          paidUpdate.pendingPlanInvoiceItemId = null;
+          paidUpdate.stripeScheduleId = attachedScheduleId;
+        } else if (!attachedScheduleId && existing?.stripeScheduleId) {
+          paidUpdate.stripeScheduleId = null;
+        }
 
         subscriptionsMap.set(userId, {
           ...(existing || {}),
@@ -2196,7 +2413,9 @@ app.get(
           subscriptionPeriodEnd: "2099-12-31T23:59:59.000Z",
           cancelAtPeriodEnd: false,
           pendingPlan: null,
+          pendingPlanAmount: null,
           pendingPlanStartsAt: null,
+          nextChargeAmount: null,
           email: userEmail,
         });
       }
@@ -2205,37 +2424,118 @@ app.get(
       let data = await getSubscriptionData(userId);
       let status = data?.subscriptionStatus || "inactive";
 
-      // Check expiration & refresh live from Stripe if periodEnd has elapsed or subscription exists
+      // Check expiration & refresh live from Stripe if periodEnd has elapsed or pending switch date has elapsed
       const periodEndMs = data?.subscriptionPeriodEnd
         ? new Date(data.subscriptionPeriodEnd).getTime()
         : null;
       const isExpiredLocally = Boolean(
         periodEndMs && !Number.isNaN(periodEndMs) && periodEndMs < Date.now()
       );
+      const pendingStartsMs = data?.pendingPlanStartsAt
+        ? new Date(data.pendingPlanStartsAt).getTime()
+        : null;
+      const isPendingStartsPassed = Boolean(
+        pendingStartsMs && !Number.isNaN(pendingStartsMs) && pendingStartsMs <= Date.now()
+      );
 
-      if (data?.stripeSubscriptionId && (isExpiredLocally || status === "past_due" || status === "incomplete")) {
+      if (
+        data?.stripeSubscriptionId &&
+        (isExpiredLocally ||
+          isPendingStartsPassed ||
+          status === "past_due" ||
+          status === "incomplete" ||
+          Boolean(data?.pendingPlan))
+      ) {
         const stripe = getStripe();
         if (stripe) {
           try {
-            const liveSub = await stripe.subscriptions.retrieve(data.stripeSubscriptionId);
-            const liveEndTs =
-              (liveSub as any).current_period_end || (liveSub as any).trial_end;
+            const liveSub = await stripe.subscriptions.retrieve(data.stripeSubscriptionId, {
+              expand: ["items.data.price"],
+            });
+            const liveEndTs = getSubscriptionPeriodEndTs(liveSub);
             const liveEndIso = liveEndTs
               ? new Date(liveEndTs * 1000).toISOString()
               : data.subscriptionPeriodEnd;
             const liveStatus =
               liveSub.status === "active" ||
               liveSub.status === "trialing" ||
-              liveSub.status === "past_due"
+              liveSub.status === "past_due" ||
+              liveSub.status === "incomplete" ||
+              liveSub.status === "unpaid"
                 ? liveSub.status
                 : "canceled";
 
-            const synced = {
+            const livePlan = derivePlanFromSubscription(liveSub) || data.subscriptionPlan;
+            const scheduleRef = (liveSub as any).schedule;
+            const liveScheduleId =
+              typeof scheduleRef === "string" ? scheduleRef : scheduleRef?.id || null;
+
+            const synced: Record<string, any> = {
               subscriptionStatus: liveStatus,
               subscriptionPeriodEnd: liveEndIso || null,
               cancelAtPeriodEnd: Boolean(liveSub.cancel_at_period_end),
               updatedAt: new Date().toISOString(),
             };
+
+            if (liveScheduleId) {
+              try {
+                const liveSchedule = await stripe.subscriptionSchedules.retrieve(liveScheduleId);
+                const curPhase = liveSchedule.current_phase;
+                const nextPhase = curPhase
+                  ? (liveSchedule.phases || []).find((p) => p.start_date >= curPhase.end_date)
+                  : undefined;
+
+                if (
+                  (liveSchedule.status === "active" || liveSchedule.status === "not_started") &&
+                  nextPhase
+                ) {
+                  let nextPlan: PaidPlan | undefined = isPaidPlan(nextPhase.metadata?.plan)
+                    ? nextPhase.metadata?.plan
+                    : undefined;
+                  const nextPrice = nextPhase.items?.[0]?.price;
+                  if (!nextPlan && typeof nextPrice === "string") {
+                    const p = await stripe.prices.retrieve(nextPrice);
+                    nextPlan = derivePlanFromPrice(p);
+                  } else if (!nextPlan && nextPrice && typeof nextPrice === "object") {
+                    nextPlan = derivePlanFromPrice(nextPrice as Stripe.Price);
+                  }
+                  if (nextPlan) {
+                    if (livePlan) synced.subscriptionPlan = livePlan;
+                    synced.pendingPlan = nextPlan;
+                    synced.pendingPlanAmount = PLAN_CONFIG[nextPlan].amount;
+                    synced.pendingPlanStartsAt = new Date(nextPhase.start_date * 1000).toISOString();
+                    synced.stripeScheduleId = liveSchedule.id;
+                  }
+                } else {
+                  if (livePlan && (liveStatus === "active" || liveStatus === "trialing")) {
+                    synced.subscriptionPlan = livePlan;
+                    synced.pendingPlan = null;
+                    synced.pendingPlanAmount = null;
+                    synced.pendingPlanStartsAt = null;
+                    synced.pendingPlanPaymentIntentId = null;
+                    synced.pendingPlanInvoiceItemId = null;
+                  }
+                  synced.stripeScheduleId =
+                    liveSchedule.status === "active" ? liveSchedule.id : null;
+                }
+              } catch {}
+            } else {
+              if (livePlan && (liveStatus === "active" || liveStatus === "trialing")) {
+                synced.subscriptionPlan = livePlan;
+              }
+              if (
+                (data.pendingPlan || data.stripeScheduleId) &&
+                (liveStatus === "active" || liveStatus === "trialing" || liveStatus === "canceled")
+              ) {
+                synced.pendingPlan = null;
+                synced.pendingPlanAmount = null;
+                synced.pendingPlanStartsAt = null;
+                synced.pendingPlanPaymentIntentId = null;
+                synced.pendingPlanInvoiceItemId = null;
+                synced.stripeScheduleId = null;
+              }
+            }
+
             data = { ...data, ...synced } as any;
             subscriptionsMap.set(userId, data!);
             await safeFirestoreSet(userId, synced);
@@ -2255,13 +2555,30 @@ app.get(
       const isPremium =
         (status === "active" || status === "trialing") && isNotExpired;
 
+      const cancelAtPeriodEnd = Boolean(data?.cancelAtPeriodEnd);
+      const pendingPlan = data?.pendingPlan || null;
+      const pendingPlanAmount =
+        typeof data?.pendingPlanAmount === "number"
+          ? data.pendingPlanAmount
+          : isPaidPlan(pendingPlan)
+            ? PLAN_CONFIG[pendingPlan].amount
+            : null;
+      const nextChargeAmount = getNextChargeAmount(
+        data?.subscriptionPlan,
+        pendingPlan,
+        pendingPlanAmount,
+        cancelAtPeriodEnd
+      );
+
       return res.json({
         subscriptionStatus: isPremium ? status : (status === "active" || status === "trialing" ? "expired" : status),
         subscriptionPlan: data?.subscriptionPlan || null,
         subscriptionPeriodEnd: data?.subscriptionPeriodEnd || null,
-        cancelAtPeriodEnd: Boolean(data?.cancelAtPeriodEnd),
-        pendingPlan: data?.pendingPlan || null,
+        cancelAtPeriodEnd,
+        pendingPlan,
+        pendingPlanAmount,
         pendingPlanStartsAt: data?.pendingPlanStartsAt || null,
+        nextChargeAmount,
         isPremium,
         role: "student",
         isCoach: false,

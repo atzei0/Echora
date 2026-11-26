@@ -3,7 +3,7 @@ import {
   User, Mail, Flame, Trophy, Award, CheckCircle2, ShieldCheck, 
   Sparkles, Calendar, Edit2, Save, X, ArrowRight, Zap, Music, 
   Clock, Mic, RefreshCw, Send, Check, LogOut, Inbox, Camera, Upload,
-  Play, Sliders, ExternalLink, Plus, FolderOpen
+  Play, Sliders, ExternalLink, Plus, FolderOpen, AlertCircle, XCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../lib/firebase';
@@ -47,6 +47,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     updateUser, 
     sendConfirmationEmail, 
     verifyEmail,
+    refreshSubscriptionStatus,
     lastRegistrationNotification,
     clearRegistrationNotification,
     logout,
@@ -95,7 +96,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [profileErrorMsg, setProfileErrorMsg] = useState('');
   
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [cancelingPending, setCancelingPending] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
   const [checkingVerification, setCheckingVerification] = useState(false);
 
   useEffect(() => {
@@ -140,6 +143,39 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setPortalError(err.message || 'Errore durante l\'apertura del portal di gestione abbonamento.');
     } finally {
       setLoadingPortal(false);
+    }
+  };
+
+  const handleCancelScheduledChange = async () => {
+    if (!user?.id) return;
+    setCancelingPending(true);
+    setPortalError(null);
+    setPendingNotice(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
+      }
+      const res = await fetch('/api/cancel-scheduled-plan-change', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Impossibile annullare il cambio piano programmato.');
+      }
+      await refreshSubscriptionStatus(true);
+      setPendingNotice(
+        data.message || 'Cambio piano programmato annullato. Il tuo abbonamento attuale rimane attivo.'
+      );
+    } catch (err: any) {
+      console.error('Errore annullamento cambio programmato:', err);
+      setPortalError(err.message || 'Errore durante l\'annullamento del cambio programmato.');
+    } finally {
+      setCancelingPending(false);
     }
   };
 
@@ -543,7 +579,21 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <h3 className="text-lg font-black text-white">
                 {user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing' ? (
                   <span className="text-emerald-400 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 inline" /> Echora Pro Attivo ({user.subscriptionPlan || 'Mensile'})
+                    <CheckCircle2 className="w-5 h-5 inline" /> Echora Pro Attivo (
+                    {user.subscriptionPlan === 'annual'
+                      ? 'Annuale'
+                      : user.subscriptionPlan === 'monthly'
+                        ? 'Mensile'
+                        : user.subscriptionPlan === 'coach_unlimited'
+                          ? 'Coach Illimitato'
+                          : user.subscriptionPlan || 'Mensile'}
+                    )
+                  </span>
+                ) : user.subscriptionStatus === 'past_due' ||
+                  user.subscriptionStatus === 'incomplete' ||
+                  user.subscriptionStatus === 'unpaid' ? (
+                  <span className="text-amber-400 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 inline" /> Pagamento Non Riuscito ({user.subscriptionStatus})
                   </span>
                 ) : user.subscriptionStatus === 'canceled' ? (
                   <span className="text-amber-400">Abbonamento Annullato</span>
@@ -555,6 +605,25 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 {user.subscriptionPeriodEnd 
                   ? `Valido fino al ${new Date(user.subscriptionPeriodEnd).toLocaleDateString('it-IT')}`
                   : 'Sblocca tutti i riscaldamenti vocali, il pitch detector e l\'AI Coach attivati 24/7'}
+                {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing') && !user.isCoach && (
+                  <>
+                    {' • '}
+                    Prossimo addebito:{' '}
+                    <strong className="text-slate-200">
+                      {user.cancelAtPeriodEnd
+                        ? 'Nessun addebito (disdetta a fine periodo)'
+                        : typeof user.nextChargeAmount === 'number'
+                          ? (user.nextChargeAmount / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+                          : user.pendingPlan === 'annual'
+                            ? '50,00 €'
+                            : user.pendingPlan === 'monthly'
+                              ? '5,00 €'
+                              : user.subscriptionPlan === 'annual'
+                                ? '50,00 €'
+                                : '5,00 €'}
+                    </strong>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -576,6 +645,41 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </button>
           </div>
         </div>
+
+        {user.pendingPlan && !user.isCoach && (
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-sky-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-1 text-xs">
+              <p className="font-black text-sky-300 uppercase tracking-wider text-[10px]">
+                Cambio Piano Programmato a Scadenza
+              </p>
+              <p className="text-slate-200">
+                Nuovo piano: <strong className="text-white">{user.pendingPlan === 'annual' ? 'Annuale' : user.pendingPlan === 'monthly' ? 'Mensile' : user.pendingPlan}</strong>
+                {' • '}Data del cambio: <strong className="text-white">{user.pendingPlanStartsAt ? new Date(user.pendingPlanStartsAt).toLocaleDateString('it-IT') : (user.subscriptionPeriodEnd ? new Date(user.subscriptionPeriodEnd).toLocaleDateString('it-IT') : 'A scadenza')}</strong>
+                {' • '}Importo alla data del cambio: <strong className="text-sky-300">{typeof user.pendingPlanAmount === 'number' ? (user.pendingPlanAmount / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : (user.pendingPlan === 'annual' ? '50,00 €' : '5,00 €')}</strong>
+              </p>
+            </div>
+            {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing') && (
+              <button
+                onClick={handleCancelScheduledChange}
+                disabled={cancelingPending}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 flex-shrink-0 cursor-pointer"
+              >
+                {cancelingPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>Annulla cambio programmato</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {pendingNotice && (
+          <p className="text-xs text-emerald-400 font-medium pt-2 border-t border-slate-800">
+            {pendingNotice}
+          </p>
+        )}
 
         {portalError && (
           <p className="text-xs text-red-400 font-medium pt-2 border-t border-slate-800">

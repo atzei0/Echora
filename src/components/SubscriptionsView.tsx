@@ -1,11 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Sparkles, ShieldCheck, Zap, Lock, ArrowRight, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Check, Sparkles, ShieldCheck, Zap, Lock, ArrowRight, RefreshCw, CheckCircle2, AlertCircle, Calendar, XCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../lib/firebase';
 import { isTrustedStripeRedirectUrl } from '../utils/validation';
 
 type PlanType = 'trial' | 'monthly' | 'quarterly' | 'annual' | 'test';
+
+const formatPlanLabel = (plan?: string | null): string => {
+  if (plan === 'monthly') return 'Mensile (5,00 € / mese)';
+  if (plan === 'annual') return 'Annuale (50,00 € / anno)';
+  if (plan === 'quarterly') return 'Trimestrale';
+  if (plan === 'trial') return 'Prova';
+  if (plan === 'coach_unlimited') return 'Coach Illimitato';
+  return plan || 'Pro';
+};
+
+const formatEuroCents = (cents?: number | null): string => {
+  if (typeof cents !== 'number' || Number.isNaN(cents)) return '—';
+  return (cents / 100).toLocaleString('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+  });
+};
+
+const formatDateIt = (iso?: string | null): string => {
+  if (!iso) return 'Rinnovo Automatico';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Rinnovo Automatico';
+  return d.toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
 
 interface SubscriptionsViewProps {
   onNavigate: (tab: string) => void;
@@ -16,7 +44,10 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
   const { user, isCoach, isSubscribed, openAuthModal, refreshSubscriptionStatus } = useAuth();
 
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
+  const [cancelingPending, setCancelingPending] = useState<boolean>(false);
+  const [openingPortal, setOpeningPortal] = useState<boolean>(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<boolean>(false);
 
   useEffect(() => {
@@ -58,6 +89,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
 
     setLoadingPlan(plan);
     setCheckoutError(null);
+    setActionSuccessMessage(null);
 
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -85,6 +117,16 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
         throw new Error(data.error || 'Errore durante la creazione della sessione Stripe Checkout');
       }
 
+      if (data.scheduled) {
+        sessionStorage.removeItem('echora_pending_checkout');
+        await refreshSubscriptionStatus(true);
+        setActionSuccessMessage(
+          data.message ||
+            `Cambio piano verso ${formatPlanLabel(data.pendingPlan)} programmato per il ${formatDateIt(data.pendingPlanStartsAt)}. Nessun addebito immediato.`
+        );
+        return;
+      }
+
       if (data.url && isTrustedStripeRedirectUrl(data.url)) {
         const isIframe = window.self !== window.top;
         if (isIframe) {
@@ -105,7 +147,149 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
     }
   };
 
+  const handleSchedulePlanChange = async (newPlan: 'monthly' | 'annual') => {
+    if (!user) {
+      openAuthModal('login');
+      return;
+    }
+
+    setLoadingPlan(newPlan);
+    setCheckoutError(null);
+    setActionSuccessMessage(null);
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
+      }
+
+      const res = await fetch('/api/schedule-plan-change', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Impossibile programmare il cambio piano.');
+      }
+
+      await refreshSubscriptionStatus(true);
+      setActionSuccessMessage(
+        data.message ||
+          `Cambio al piano ${formatPlanLabel(newPlan)} programmato per il ${formatDateIt(data.pendingPlanStartsAt)}. Nessun addebito immediato.`
+      );
+    } catch (err: any) {
+      console.error('Errore programmazione cambio piano:', err);
+      setCheckoutError(err.message || 'Errore durante la programmazione del cambio piano.');
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  const handleCancelScheduledChange = async () => {
+    if (!user) {
+      openAuthModal('login');
+      return;
+    }
+
+    setCancelingPending(true);
+    setCheckoutError(null);
+    setActionSuccessMessage(null);
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta o non valida. Effettua nuovamente il login.');
+      }
+
+      const res = await fetch('/api/cancel-scheduled-plan-change', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Impossibile annullare il cambio piano programmato.');
+      }
+
+      await refreshSubscriptionStatus(true);
+      setActionSuccessMessage(
+        data.message || 'Cambio piano programmato annullato. Il tuo abbonamento attuale rimane regolarmente attivo.'
+      );
+    } catch (err: any) {
+      console.error('Errore annullamento cambio piano:', err);
+      setCheckoutError(err.message || 'Errore durante l\'annullamento del cambio programmato.');
+    } finally {
+      setCancelingPending(false);
+    }
+  };
+
+  const handleOpenCustomerPortal = async () => {
+    if (!user) {
+      openAuthModal('login');
+      return;
+    }
+    setOpeningPortal(true);
+    setCheckoutError(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Sessione di autenticazione scaduta.');
+      }
+      const res = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Impossibile aprire il portale clienti Stripe.');
+      }
+      if (data.url && isTrustedStripeRedirectUrl(data.url)) {
+        const isIframe = window.self !== window.top;
+        if (isIframe) {
+          window.open(data.url, '_blank', 'noopener,noreferrer');
+        } else {
+          window.location.href = data.url;
+        }
+      }
+    } catch (err: any) {
+      setCheckoutError(err.message || 'Errore durante l\'apertura del portale Stripe.');
+    } finally {
+      setOpeningPortal(false);
+    }
+  };
+
   const isUserPremium = !isCoach && isSubscribed;
+  const currentPlanKey = user?.subscriptionPlan;
+  const pendingPlanKey = user?.pendingPlan || null;
+  const isPaymentPastDue =
+    !isCoach &&
+    (user?.subscriptionStatus === 'past_due' ||
+      user?.subscriptionStatus === 'incomplete' ||
+      user?.subscriptionStatus === 'unpaid');
+  const nextChargeDisplay = user?.cancelAtPeriodEnd
+    ? 'Nessun addebito (disdetta a fine periodo)'
+    : typeof user?.nextChargeAmount === 'number'
+      ? formatEuroCents(user.nextChargeAmount)
+      : pendingPlanKey === 'annual'
+        ? '50,00 €'
+        : pendingPlanKey === 'monthly'
+          ? '5,00 €'
+          : currentPlanKey === 'annual'
+            ? '50,00 €'
+            : currentPlanKey === 'monthly'
+              ? '5,00 €'
+              : '—';
 
   return (
     <div className="min-w-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
@@ -146,31 +330,117 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
 
       {/* VERIFIED ACTIVE STUDENT SUBSCRIPTION BANNER */}
       {isUserPremium && (
-        <div className="p-6 rounded-3xl bg-emerald-950/80 border-2 border-emerald-400/80 text-emerald-100 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 flex-shrink-0">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider mb-1">
-                <span>Stato Verificato dal Server (Firebase / Stripe)</span>
+        <div className="p-6 rounded-3xl bg-emerald-950/80 border-2 border-emerald-400/80 text-emerald-100 shadow-2xl space-y-5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start space-x-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 flex-shrink-0">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-black text-white">
-                Abbonamento Echora Pro Attivo
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                  <span>Stato Verificato dal Server (Firebase / Stripe)</span>
+                </div>
+                <h3 className="text-xl font-black text-white">
+                  Abbonamento Echora Pro Attivo
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs text-emerald-200 pt-1">
+                  <p>
+                    Piano attuale: <strong className="text-white">{formatPlanLabel(currentPlanKey)}</strong>
+                  </p>
+                  <p>
+                    Valido fino al: <strong className="text-white">{formatDateIt(user?.subscriptionPeriodEnd)}</strong>
+                  </p>
+                  <p>
+                    Prossimo addebito: <strong className="text-white">{nextChargeDisplay}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onNavigate('exercises')}
+              className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 flex-shrink-0 cursor-pointer"
+            >
+              <span>Accedi a tutti i Vocal Workout</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {pendingPlanKey && (
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-sky-400/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Calendar className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs">
+                  <p className="font-black text-sky-300 uppercase tracking-wider text-[11px]">
+                    Cambio Piano Programmato a Scadenza (Nessun Addebito Anticipato)
+                  </p>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-slate-200">
+                    <span>
+                      Nuovo piano programmato: <strong className="text-white">{formatPlanLabel(pendingPlanKey)}</strong>
+                    </span>
+                    <span>
+                      Data del cambio: <strong className="text-white">{formatDateIt(user?.pendingPlanStartsAt || user?.subscriptionPeriodEnd)}</strong>
+                    </span>
+                    <span>
+                      Importo prossimo addebito: <strong className="text-sky-300">{formatEuroCents(user?.pendingPlanAmount ?? (pendingPlanKey === 'annual' ? 5000 : 500))}</strong>
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Mantieni il tuo piano attuale ({formatPlanLabel(currentPlanKey)}) e l'accesso completo Pro fino alla data del cambio.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleCancelScheduledChange}
+                disabled={cancelingPending}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-50 flex-shrink-0 cursor-pointer"
+              >
+                {cancelingPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>Annulla cambio programmato</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PAYMENT FAILED / PAST DUE BANNER */}
+      {isPaymentPastDue && (
+        <div className="p-6 rounded-3xl bg-amber-950/80 border-2 border-amber-400/80 text-amber-100 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start space-x-4">
+            <AlertCircle className="w-7 h-7 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <h3 className="text-lg font-black text-white">
+                Pagamento del Rinnovo o Cambio Piano Non Riuscito
               </h3>
-              <p className="text-xs text-emerald-200 mt-0.5">
-                Piano: <strong className="text-white capitalize">{user?.subscriptionPlan || 'Pro'}</strong> — 
-                Valido fino al: <strong className="text-white">{user?.subscriptionPeriodEnd ? new Date(user.subscriptionPeriodEnd).toLocaleDateString('it-IT') : 'Rinnovo Automatico'}</strong>
+              <p className="text-amber-200">
+                L'ultimo addebito automatico su Stripe risulta non riuscito (stato: <strong>{user?.subscriptionStatus}</strong>).
+                {pendingPlanKey
+                  ? ` Il passaggio al piano ${formatPlanLabel(pendingPlanKey)} non è stato completato per mancato pagamento.`
+                  : ''}
+              </p>
+              <p className="text-amber-300/80">
+                Aggiorna il metodo di pagamento nel portale Stripe per riattivare l'accesso Pro ed evitare la cancellazione definitiva.
               </p>
             </div>
           </div>
-
           <button
-            onClick={() => onNavigate('exercises')}
-            className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2"
+            onClick={handleOpenCustomerPortal}
+            disabled={openingPortal}
+            className="px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 flex-shrink-0 disabled:opacity-50 cursor-pointer"
           >
-            <span>Accedi a tutti i Vocal Workout</span>
-            <ArrowRight className="w-4 h-4" />
+            {openingPortal ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Zap className="w-4 h-4 fill-slate-950" />
+                <span>Aggiorna Metodo di Pagamento</span>
+              </>
+            )}
           </button>
         </div>
       )}
@@ -185,6 +455,14 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               <p className="text-xs text-blue-200">Stiamo aggiornando il tuo profilo tramite il Webhook Stripe. L'accesso verrà sbloccato tra pochi istanti.</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* SCHEDULED CHANGE ACTION CONFIRMATION */}
+      {actionSuccessMessage && (
+        <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-100 text-xs font-semibold flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <span>{actionSuccessMessage}</span>
         </div>
       )}
 
@@ -256,21 +534,59 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               </div>
             </div>
 
-            <button
-              onClick={() => handleInitiateCheckout('monthly')}
-              disabled={loadingPlan === 'monthly'}
-              className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs sm:text-sm border border-slate-700 flex items-center justify-center gap-1.5 transition-all shadow-md disabled:opacity-50 cursor-pointer"
-            >
-              {loadingPlan === 'monthly' ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-white" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-sky-400" />
-                  <span>Acquista Mensile (€5)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            {isUserPremium ? (
+              <button
+                onClick={() => handleSchedulePlanChange('monthly')}
+                disabled={
+                  loadingPlan === 'monthly' ||
+                  currentPlanKey === 'monthly' ||
+                  pendingPlanKey === 'monthly' ||
+                  Boolean(pendingPlanKey) ||
+                  Boolean(user?.cancelAtPeriodEnd)
+                }
+                className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs sm:text-sm border border-slate-700 flex items-center justify-center gap-1.5 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {loadingPlan === 'monthly' ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                ) : currentPlanKey === 'monthly' ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Piano Attuale Attivo</span>
+                  </>
+                ) : pendingPlanKey === 'monthly' ? (
+                  <>
+                    <Calendar className="w-4 h-4 text-sky-400" />
+                    <span>Cambio Già Programmato ({formatDateIt(user?.pendingPlanStartsAt || user?.subscriptionPeriodEnd)})</span>
+                  </>
+                ) : pendingPlanKey ? (
+                  <span>Annulla prima il cambio programmato</span>
+                ) : user?.cancelAtPeriodEnd ? (
+                  <span>Rinnovo disattivato a scadenza</span>
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4 text-sky-400" />
+                    <span>Passa al Mensile a Scadenza (0 € oggi)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleInitiateCheckout('monthly')}
+                disabled={loadingPlan === 'monthly'}
+                className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs sm:text-sm border border-slate-700 flex items-center justify-center gap-1.5 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                {loadingPlan === 'monthly' ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-sky-400" />
+                    <span>Acquista Mensile (€5)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* 2. ANNUAL PLAN CARD */}
@@ -330,21 +646,59 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ onNavigate
               </div>
             </div>
 
-            <button
-              onClick={() => handleInitiateCheckout('annual')}
-              disabled={loadingPlan === 'annual'}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-sky-500/30 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {loadingPlan === 'annual' ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-slate-950" />
-                  <span>Acquista Annuale (€50)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            {isUserPremium ? (
+              <button
+                onClick={() => handleSchedulePlanChange('annual')}
+                disabled={
+                  loadingPlan === 'annual' ||
+                  currentPlanKey === 'annual' ||
+                  pendingPlanKey === 'annual' ||
+                  Boolean(pendingPlanKey) ||
+                  Boolean(user?.cancelAtPeriodEnd)
+                }
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-sky-500/30 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {loadingPlan === 'annual' ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                ) : currentPlanKey === 'annual' ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                    <span>Piano Attuale Attivo</span>
+                  </>
+                ) : pendingPlanKey === 'annual' ? (
+                  <>
+                    <Calendar className="w-4 h-4 text-slate-950" />
+                    <span>Cambio Già Programmato ({formatDateIt(user?.pendingPlanStartsAt || user?.subscriptionPeriodEnd)})</span>
+                  </>
+                ) : pendingPlanKey ? (
+                  <span>Annulla prima il cambio programmato</span>
+                ) : user?.cancelAtPeriodEnd ? (
+                  <span>Rinnovo disattivato a scadenza</span>
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4 text-slate-950" />
+                    <span>Passa all'Annuale a Scadenza (0 € oggi)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleInitiateCheckout('annual')}
+                disabled={loadingPlan === 'annual'}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-sky-500/30 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {loadingPlan === 'annual' ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-slate-950" />
+                    <span>Acquista Annuale (€50)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
         </div>

@@ -54,6 +54,11 @@ export interface UserAccount {
   subscriptionStatus?: string;
   subscriptionPlan?: string;
   subscriptionPeriodEnd?: string;
+  cancelAtPeriodEnd?: boolean;
+  pendingPlan?: string | null;
+  pendingPlanAmount?: number | null;
+  pendingPlanStartsAt?: string | null;
+  nextChargeAmount?: number | null;
   role?: 'coach' | 'student';
   isCoach?: boolean;
 }
@@ -65,6 +70,11 @@ interface ServerAuthState {
   subscriptionStatus: string;
   subscriptionPlan?: string;
   subscriptionPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  pendingPlan: string | null;
+  pendingPlanAmount: number | null;
+  pendingPlanStartsAt: string | null;
+  nextChargeAmount: number | null;
 }
 
 const DEFAULT_SERVER_AUTH_STATE: ServerAuthState = {
@@ -72,6 +82,11 @@ const DEFAULT_SERVER_AUTH_STATE: ServerAuthState = {
   role: 'student',
   isSubscribed: false,
   subscriptionStatus: 'inactive',
+  cancelAtPeriodEnd: false,
+  pendingPlan: null,
+  pendingPlanAmount: null,
+  pendingPlanStartsAt: null,
+  nextChargeAmount: null,
 };
 
 interface AuthContextType {
@@ -492,6 +507,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : typeof data?.subscriptionPeriodEnd === 'string'
             ? data.subscriptionPeriodEnd
             : undefined,
+        cancelAtPeriodEnd: verifiedCoach ? false : Boolean(data?.cancelAtPeriodEnd),
+        pendingPlan: verifiedCoach
+          ? null
+          : typeof data?.pendingPlan === 'string'
+            ? data.pendingPlan
+            : null,
+        pendingPlanAmount: verifiedCoach
+          ? null
+          : typeof data?.pendingPlanAmount === 'number'
+            ? data.pendingPlanAmount
+            : null,
+        pendingPlanStartsAt: verifiedCoach
+          ? null
+          : typeof data?.pendingPlanStartsAt === 'string'
+            ? data.pendingPlanStartsAt
+            : null,
+        nextChargeAmount: verifiedCoach
+          ? null
+          : typeof data?.nextChargeAmount === 'number'
+            ? data.nextChargeAmount
+            : null,
       };
     } catch {
       return DEFAULT_SERVER_AUTH_STATE;
@@ -517,6 +553,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             subscriptionStatus: nextState.subscriptionStatus,
             subscriptionPlan: nextState.subscriptionPlan,
             subscriptionPeriodEnd: nextState.subscriptionPeriodEnd,
+            cancelAtPeriodEnd: nextState.cancelAtPeriodEnd,
+            pendingPlan: nextState.pendingPlan,
+            pendingPlanAmount: nextState.pendingPlanAmount,
+            pendingPlanStartsAt: nextState.pendingPlanStartsAt,
+            nextChargeAmount: nextState.nextChargeAmount,
           }
         : prev
     );
@@ -750,6 +791,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscriptionStatus: verifiedServer.subscriptionStatus,
       subscriptionPlan: verifiedServer.subscriptionPlan,
       subscriptionPeriodEnd: verifiedServer.subscriptionPeriodEnd,
+      cancelAtPeriodEnd: verifiedServer.cancelAtPeriodEnd,
+      pendingPlan: verifiedServer.pendingPlan,
+      pendingPlanAmount: verifiedServer.pendingPlanAmount,
+      pendingPlanStartsAt: verifiedServer.pendingPlanStartsAt,
+      nextChargeAmount: verifiedServer.nextChargeAmount,
     };
 
     setVocalProfile(mergedVocalProfile);

@@ -20,20 +20,15 @@ app.disable("x-powered-by");
 
 const PLAN_CONFIG = {
   monthly: {
+    priceId: "price_1Ug3yHRzCXUCCVE5q85otTNc",
     amount: 500,
     interval: "month" as const,
     intervalCount: 1,
     label: "Abbonamento Mensile",
     description: "5,00 €/mese",
   },
-  quarterly: {
-    amount: 4500,
-    interval: "month" as const,
-    intervalCount: 3,
-    label: "Abbonamento Trimestrale",
-    description: "45,00 € ogni 3 mesi",
-  },
   annual: {
+    priceId: "price_1Ug3z6RzCXUCCVE5EqELjmy8",
     amount: 5000,
     interval: "year" as const,
     intervalCount: 1,
@@ -41,6 +36,8 @@ const PLAN_CONFIG = {
     description: "50,00 €/anno",
   },
 } as const;
+
+const LEGACY_QUARTERLY_AMOUNT = 4500;
 
 type PaidPlan = keyof typeof PLAN_CONFIG;
 
@@ -633,11 +630,7 @@ async function getSubscriptionData(userId: string) {
 function isPaidPlan(
   plan: string | undefined | null
 ): plan is PaidPlan {
-  return (
-    plan === "monthly" ||
-    plan === "quarterly" ||
-    plan === "annual"
-  );
+  return plan === "monthly" || plan === "annual";
 }
 
 class PlanChangeError extends Error {
@@ -661,7 +654,17 @@ function getSubscriptionPeriodEndTs(subscription: Stripe.Subscription): number |
 function derivePlanFromPrice(
   price: Stripe.Price | string | null | undefined
 ): PaidPlan | undefined {
-  if (!price || typeof price !== "object") {
+  if (!price) {
+    return undefined;
+  }
+  const priceId = typeof price === "string" ? price : price.id;
+  if (priceId === PLAN_CONFIG.monthly.priceId) {
+    return "monthly";
+  }
+  if (priceId === PLAN_CONFIG.annual.priceId) {
+    return "annual";
+  }
+  if (typeof price !== "object") {
     return undefined;
   }
   const metaPlan = price.metadata?.echoraPlan;
@@ -674,9 +677,6 @@ function derivePlanFromPrice(
   if (interval === "year" && intervalCount === 1 && unitAmount === PLAN_CONFIG.annual.amount) {
     return "annual";
   }
-  if (interval === "month" && intervalCount === 3 && unitAmount === PLAN_CONFIG.quarterly.amount) {
-    return "quarterly";
-  }
   if (interval === "month" && intervalCount === 1 && unitAmount === PLAN_CONFIG.monthly.amount) {
     return "monthly";
   }
@@ -684,8 +684,20 @@ function derivePlanFromPrice(
 }
 
 function derivePlanFromSubscription(subscription: Stripe.Subscription): string | undefined {
-  const fromItem = derivePlanFromPrice(subscription.items?.data?.[0]?.price);
+  const price = subscription.items?.data?.[0]?.price;
+  const fromItem = derivePlanFromPrice(price);
   if (fromItem) return fromItem;
+  if (price && typeof price === "object") {
+    const legacyMeta = price.metadata?.echoraPlan;
+    if (legacyMeta === "quarterly") return "quarterly";
+    if (
+      price.recurring?.interval === "month" &&
+      (price.recurring?.interval_count ?? 1) === 3 &&
+      price.unit_amount === LEGACY_QUARTERLY_AMOUNT
+    ) {
+      return "quarterly";
+    }
+  }
   const metaPlan = subscription.metadata?.plan;
   return typeof metaPlan === "string" && metaPlan ? metaPlan : undefined;
 }
@@ -705,6 +717,9 @@ function getNextChargeAmount(
   }
   if (isPaidPlan(subscriptionPlan)) {
     return PLAN_CONFIG[subscriptionPlan].amount;
+  }
+  if (subscriptionPlan === "quarterly") {
+    return LEGACY_QUARTERLY_AMOUNT;
   }
   if (subscriptionPlan === "trial") {
     return PLAN_CONFIG.monthly.amount;
@@ -757,16 +772,9 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
       }
     }
 
-    if (
-      typeof plan !== "string" ||
-      (plan !== "trial" &&
-      plan !== "monthly" &&
-      plan !== "quarterly" &&
-      plan !== "annual" &&
-      plan !== "test")
-    ) {
+    if (!isPaidPlan(plan)) {
       return res.status(400).json({
-        error: "Piano non valido",
+        error: "Piano non valido. I piani disponibili sono esclusivamente mensile e annuale.",
       });
     }
 
@@ -804,231 +812,16 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
        CAMBIO DI PIANO SU SUBSCRIPTION ESISTENTE
        ===================================================== */
 
-    if (
-      hasCurrentSubscription &&
-      isPaidPlan(plan)
-    ) {
+    if (hasCurrentSubscription) {
       const result = await executeSchedulePlanChange(stripe, userId, plan);
       return res.json(result);
     }
 
     /* =====================================================
-       TRIAL NORMALE
+       NUOVO ABBONAMENTO CON PRICE ID UFFICIALI STRIPE
        ===================================================== */
 
-    let lineItems:
-      Stripe.Checkout.SessionCreateParams.LineItem[] =
-      [];
-
-    let mode:
-      Stripe.Checkout.SessionCreateParams.Mode =
-        "subscription";
-
-    let subscriptionData:
-      Stripe.Checkout.SessionCreateParams.SubscriptionData
-      | undefined = undefined;
-
-    switch (plan) {
-      case "trial":
-        /*
-         * 0,99 € immediati
-         * +
-         * subscription mensile da 20 €
-         * che parte dopo 7 giorni.
-         *
-         * Stripe gestisce automaticamente la fine
-         * del trial e il successivo ciclo di fatturazione.
-         */
-
-        lineItems = [
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name:
-                  "Echora — 7 Giorni di Prova",
-
-                description:
-                  "0,99 € per i primi 7 giorni",
-              },
-
-              unit_amount: 99,
-            },
-
-            quantity: 1,
-          },
-
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name:
-                  "Echora — Abbonamento Mensile",
-
-                description:
-                  "5,00 €/mese dopo i 7 giorni di prova",
-              },
-
-              unit_amount: 500,
-
-              recurring: {
-                interval: "month",
-              },
-            },
-
-            quantity: 1,
-          },
-        ];
-
-        mode = "subscription";
-
-        subscriptionData = {
-          trial_period_days: 7,
-
-          metadata: {
-            userId,
-            plan: "trial",
-          },
-        };
-
-        break;
-
-      case "monthly":
-        lineItems = [
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name: "Echora — Abbonamento Mensile",
-
-                description:
-                  "5,00 €/mese",
-              },
-
-              unit_amount: 500,
-
-              recurring: {
-                interval: "month",
-              },
-            },
-
-            quantity: 1,
-          },
-        ];
-
-        mode = "subscription";
-
-        subscriptionData = {
-          metadata: {
-            userId,
-            plan: "monthly",
-          },
-        };
-
-        break;
-
-      case "quarterly":
-        lineItems = [
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name:
-                  "Echora — Abbonamento Trimestrale",
-
-                description:
-                  "45,00 € ogni 3 mesi",
-              },
-
-              unit_amount: 4500,
-
-              recurring: {
-                interval: "month",
-                interval_count: 3,
-              },
-            },
-
-            quantity: 1,
-          },
-        ];
-
-        mode = "subscription";
-
-        subscriptionData = {
-          metadata: {
-            userId,
-            plan: "quarterly",
-          },
-        };
-
-        break;
-
-      case "annual":
-        lineItems = [
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name:
-                  "Echora — Abbonamento Annuale",
-
-                description:
-                  "50,00 €/anno",
-              },
-
-              unit_amount: 5000,
-
-              recurring: {
-                interval: "year",
-              },
-            },
-
-            quantity: 1,
-          },
-        ];
-
-        mode = "subscription";
-
-        subscriptionData = {
-          metadata: {
-            userId,
-            plan: "annual",
-          },
-        };
-
-        break;
-
-      case "test":
-        lineItems = [
-          {
-            price_data: {
-              currency: "eur",
-
-              product_data: {
-                name: "Echora Test",
-
-                description:
-                  "Pagamento Test 0,99 €",
-              },
-
-              unit_amount: 99,
-            },
-
-            quantity: 1,
-          },
-        ];
-
-        mode = "payment";
-
-        subscriptionData = undefined;
-
-        break;
-    }
+    const selectedConfig = PLAN_CONFIG[plan];
 
     const sessionParams:
       Stripe.Checkout.SessionCreateParams = {
@@ -1038,12 +831,21 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
         "klarna",
       ],
 
-      line_items: lineItems,
+      line_items: [
+        {
+          price: selectedConfig.priceId,
+          quantity: 1,
+        },
+      ],
 
-      mode,
+      mode: "subscription",
 
-      subscription_data:
-        subscriptionData,
+      subscription_data: {
+        metadata: {
+          userId,
+          plan,
+        },
+      },
 
       client_reference_id: userId,
 
@@ -1054,16 +856,6 @@ app.post("/api/create-checkout-session", verifySameOriginOnApi, apiSensitiveLimi
         userId,
         plan,
       },
-
-      custom_text:
-        plan === "trial"
-          ? {
-              submit: {
-                message:
-                  "Paghi 0,99 € oggi per 7 giorni di prova di Echora. Se non disdici prima della fine dei 7 giorni, l'abbonamento si rinnoverà automaticamente a 20,00 €/mese.",
-              },
-            }
-          : undefined,
 
       success_url:
         `${appUrl}/#payment-success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
@@ -1746,7 +1538,7 @@ app.post("/api/webhook", async (req, res) => {
 
       // Standard checkout flow
       if (userId) {
-        const normalPlan = plan || "monthly";
+        let normalPlan = plan || "monthly";
 
         const customerId =
           typeof session.customer === "string"
@@ -1775,7 +1567,9 @@ app.post("/api/webhook", async (req, res) => {
 
         if (subscriptionId) {
           try {
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+              expand: ["items.data.price"],
+            });
             if (
               subscription.status === "trialing" ||
               subscription.status === "active" ||
@@ -1785,6 +1579,11 @@ app.post("/api/webhook", async (req, res) => {
               subscription.status === "unpaid"
             ) {
               subscriptionStatus = subscription.status;
+            }
+
+            const derivedFromSub = derivePlanFromSubscription(subscription);
+            if (derivedFromSub) {
+              normalPlan = derivedFromSub;
             }
 
             const periodEndTs = getSubscriptionPeriodEndTs(subscription);

@@ -15,7 +15,7 @@ const PORT = 3000;
 app.disable("x-powered-by");
 
 /* =========================================================
-   CONFIG & SECURITY HELPERS
+   CONFIG & SECURITY HELPERS (Official Stripe Price IDs)
    ========================================================= */
 
 const PLAN_CONFIG = {

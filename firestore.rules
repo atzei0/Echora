@@ -27,6 +27,7 @@ service cloud.firestore {
       return data.keys().hasAny([
         'subscriptionStatus',
         'subscriptionPlan',
+        'subscriptionPeriodStart',
         'subscriptionPeriodEnd',
         'cancelAtPeriodEnd',
         'stripeCustomerId',
@@ -48,6 +49,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus',
         'subscriptionPlan',
+        'subscriptionPeriodStart',
         'subscriptionPeriodEnd',
         'cancelAtPeriodEnd',
         'stripeCustomerId',
@@ -84,7 +86,7 @@ service cloud.firestore {
           // Server-managed fields allowed in existing documents during client merge
           // (protected separately against client create/update via hasPrivilegedFields / touchesPrivilegedFields)
           'emailVerified', 'role', 'isCoach',
-          'subscriptionStatus', 'subscriptionPlan', 'subscriptionPeriodEnd',
+          'subscriptionStatus', 'subscriptionPlan', 'subscriptionPeriodStart', 'subscriptionPeriodEnd',
           'cancelAtPeriodEnd', 'stripeCustomerId', 'stripeSubscriptionId',
           'pendingPlan', 'pendingPlanAmount', 'pendingPlanPaymentIntentId',
           'pendingPlanStartsAt', 'pendingPlanInvoiceItemId', 'stripeScheduleId',

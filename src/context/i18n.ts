@@ -56,11 +56,11 @@ export const translations = {
 
     // Subscriptions View
     pricingTitle: 'Piani e Abbonamenti Echora',
-    pricingSubtitle: 'Sblocca l\'accesso illimitato a tutti gli esercizi, tuner real-time, spettrogramma e Coach AI.',
+    pricingSubtitle: 'Sblocca l\'accesso illimitato a tutti gli esercizi, tuner real-time e spettrogramma vocale.',
     trialPlan: 'Prova 7 Giorni',
-    monthlyPlan: 'Abbonamento Mensile',
+    monthlyPlan: 'Abbonamento Echora — Mensile',
     quarterlyPlan: 'Abbonamento Trimestrale',
-    annualPlan: 'Abbonamento Annuale',
+    annualPlan: 'Abbonamento Echora — Annuale',
     trialPrice: '0,99€',
     trialPeriod: '/7 giorni',
     monthlyPrice: '5,00€',
@@ -79,7 +79,7 @@ export const translations = {
     feature1: 'Accesso illimitato a tutti i vocalizzi e riscaldamenti',
     feature2: 'Allenamenti avanzati per Voce Mista e Risonanze',
     feature3: 'Spettrogramma audio e Tuner real-time ad alta precisione',
-    feature4: 'Coach AI Vocale disponibile 24/7 senza limiti',
+    feature4: 'Accesso completo a tutti i contenuti e strumenti Echora senza limiti',
     feature5: 'Test Estensione Vocale e Diario Registrazioni Memo',
     feature6: 'Cancellazione facile in qualsiasi momento con un click',
     selectTrialBtn: 'Attiva Prova a 0,99€',
@@ -108,7 +108,7 @@ export const translations = {
     cardExpiry: 'Scadenza (MM/AA)',
     cardCvc: 'CVC / CVV',
     paymentSuccessTitle: 'Abbonamento Attivato con Successo! 🎉',
-    paymentSuccessDesc: 'Grazie per esserti unito/a ad Echora! Il tuo account Premium è ora attivo.',
+    paymentSuccessDesc: 'Grazie per esserti unito/a ad Echora! Il tuo abbonamento Echora è ora attivo.',
     transactionId: 'ID Transazione:',
     continueToApp: 'Inizia subito ad Allenarti',
 
@@ -309,11 +309,11 @@ export const translations = {
 
     // Subscriptions View
     pricingTitle: 'Echora Plans & Subscriptions',
-    pricingSubtitle: 'Unlock unlimited access to all vocalises, real-time tuner, spectrogram, and AI Coach.',
+    pricingSubtitle: 'Unlock unlimited access to all vocalises, real-time tuner, and vocal spectrogram.',
     trialPlan: '7-Day Trial',
-    monthlyPlan: 'Monthly Subscription',
+    monthlyPlan: 'Abbonamento Echora — Mensile',
     quarterlyPlan: 'Quarterly Subscription',
-    annualPlan: 'Annual Subscription',
+    annualPlan: 'Abbonamento Echora — Annuale',
     trialPrice: '€0.99',
     trialPeriod: '/7 days',
     monthlyPrice: '€5.00',
@@ -332,7 +332,7 @@ export const translations = {
     feature1: 'Unlimited access to all vocalises and warm-ups',
     feature2: 'Advanced workouts for Mix Voice & Resonance',
     feature3: 'High-precision audio spectrogram & real-time tuner',
-    feature4: '24/7 AI Vocal Coach without limitations',
+    feature4: 'Full access to all Echora vocal exercises and tools without limits',
     feature5: 'Vocal Range Tester and Voice Memos Journal',
     feature6: 'Easy 1-click cancellation anytime',
     selectTrialBtn: 'Start Trial for €0.99',
@@ -361,7 +361,7 @@ export const translations = {
     cardExpiry: 'Expiry (MM/YY)',
     cardCvc: 'CVC / CVV',
     paymentSuccessTitle: 'Subscription Activated Successfully! 🎉',
-    paymentSuccessDesc: 'Thank you for joining Echora! Your Premium account is now active.',
+    paymentSuccessDesc: 'Thank you for joining Echora! Your Echora subscription is now active.',
     transactionId: 'Transaction ID:',
     continueToApp: 'Start Training Now',
 
@@ -371,7 +371,7 @@ export const translations = {
     welcomeP2: 'Singing lessons are essential, but true transformation happens between lessons. Training even for just a few minutes a day consolidates technique, builds new skills, and makes progress faster and more stable.',
     welcomeP3: 'The challenge is that practicing on your own isn\'t always easy. You might forget the exercises, struggle to accompany yourself on piano, or feel unsure about which exercises suit your goals.',
     welcomeP4: 'That is exactly why Echora was born.',
-    welcomeP5: 'Here you can craft your daily workout, pick the exercises tailored to your goals, access a library available 24/7, and let yourself be guided step by step without worrying about playing piano accompaniment or memorizing routines.',
+    welcomeP5: 'Here you can craft your daily workout, pick the exercises tailored to your goals, access an always-available library, and let yourself be guided step by step without worrying about playing piano accompaniment or memorizing routines.',
     
     // Workout Structure Guide
     structureTitle: 'How to use Echora for my voice?',

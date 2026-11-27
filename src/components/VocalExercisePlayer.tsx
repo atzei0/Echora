@@ -2544,8 +2544,8 @@ export const VocalExercisePlayer: React.FC<VocalExercisePlayerProps> = ({
                       <Lock className="w-4 h-4 text-amber-400 shrink-0" />
                       <span className="font-bold">
                         {language === 'en'
-                          ? 'Premium Exercise — Choose your subscription to play'
-                          : 'Esercizio Premium — Scegli il tuo abbonamento Echora per avviarlo'}
+                          ? 'Subscription Required — Choose your Echora plan to play'
+                          : 'Esercizio riservato — Scegli il tuo abbonamento Echora per avviarlo'}
                       </span>
                     </div>
                     <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-extrabold text-[11px] shrink-0 border border-amber-400/40">

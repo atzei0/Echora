@@ -25,10 +25,40 @@ interface HistoryEntry {
   fromLabel?: string;
 }
 
+export interface CheckoutReturnInfo {
+  status: 'success' | 'cancelled';
+  sessionId: string | null;
+  plan?: string | null;
+}
+
+function parseStripeReturnFromLocation(): CheckoutReturnInfo | null {
+  try {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const searchParams = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+    const hashQueryIdx = hash.indexOf('?');
+    const hashParams = new URLSearchParams(hashQueryIdx >= 0 ? hash.slice(hashQueryIdx + 1) : '');
+
+    const sessionId = hashParams.get('session_id') || searchParams.get('session_id');
+    const plan = hashParams.get('plan') || searchParams.get('plan');
+
+    if (hash.includes('payment-success') || sessionId) {
+      return { status: 'success', sessionId, plan };
+    }
+    if (hash.includes('payment-cancelled')) {
+      return { status: 'cancelled', sessionId: null, plan: null };
+    }
+  } catch {
+    // ignore URL parsing errors
+  }
+  return null;
+}
+
 function MainApp() {
   const { t, language } = useLanguage();
   const {
     user,
+    isAuthReady,
     vocalProfile,
     sessions,
     recordings,
@@ -42,11 +72,21 @@ function MainApp() {
     closeSubscriptionModal,
     subscriptionModalMessage,
   } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('start');
+  const [checkoutReturnInfo, setCheckoutReturnInfo] = useState<CheckoutReturnInfo | null>(() =>
+    parseStripeReturnFromLocation()
+  );
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const parsed = parseStripeReturnFromLocation();
+    if (parsed) return 'pricing';
+    if (typeof window !== 'undefined' && window.location.hash === '#profile') return 'profile';
+    return 'start';
+  });
   const [startSubTool, setStartSubTool] = useState<'range' | 'tuner' | 'breathing' | 'routine' | 'tempo'>('range');
-  const [navHistory, setNavHistory] = useState<HistoryEntry[]>([
-    { tab: 'start', subTool: 'range' }
-  ]);
+  const [navHistory, setNavHistory] = useState<HistoryEntry[]>(() => {
+    const parsed = parseStripeReturnFromLocation();
+    if (parsed) return [{ tab: 'pricing' }];
+    return [{ tab: 'start', subTool: 'range' }];
+  });
 
   const handleNavigate = (
     targetTab: string,
@@ -103,11 +143,32 @@ function MainApp() {
   }, [activeTab]);
 
   useEffect(() => {
+    const initialReturn = parseStripeReturnFromLocation();
+    if (initialReturn) {
+      setCheckoutReturnInfo(initialReturn);
+      setActiveTab('pricing');
+    }
+
     try {
-      window.history.replaceState({ tab: 'start', subTool: 'range' }, '', window.location.pathname);
+      window.history.replaceState(
+        initialReturn ? { tab: 'pricing' } : { tab: activeTab, subTool: startSubTool },
+        '',
+        window.location.pathname
+      );
     } catch {
       // ignore
     }
+
+    const handleHashChange = () => {
+      const nextReturn = parseStripeReturnFromLocation();
+      if (nextReturn) {
+        setCheckoutReturnInfo(nextReturn);
+        setActiveTab('pricing');
+        try {
+          window.history.replaceState({ tab: 'pricing' }, '', window.location.pathname);
+        } catch {}
+      }
+    };
 
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && e.state.tab) {
@@ -120,8 +181,12 @@ function MainApp() {
       }
     };
 
+    window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [navHistory]);
 
   const lastEntry = navHistory[navHistory.length - 1];
@@ -152,6 +217,30 @@ function MainApp() {
     sessions.reduce((acc, curr) => acc + curr.durationMinutes, 0)
   );
   const streak = sessions.length > 0 ? Math.min(30, Math.max(1, sessions.length)) : 1;
+
+  if (!isAuthReady) {
+    return (
+      <div
+        className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center select-none"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        data-testid="auth-loading-gate"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-400/40 flex items-center justify-center mb-4">
+          <Sparkles className="w-6 h-6 text-sky-400 animate-spin" />
+        </div>
+        <h2 className="text-lg sm:text-xl font-black text-white">
+          {language === 'en' ? 'Verifying your account...' : 'Verifica account in corso...'}
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-400 mt-1.5 max-w-sm">
+          {language === 'en'
+            ? 'Checking Firebase identity and syncing your Echora session securely.'
+            : 'Controllo dell’identità Firebase e sincronizzazione sicura dei dati in corso.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
@@ -233,7 +322,11 @@ function MainApp() {
         )}
 
         {activeTab === 'pricing' && (
-          <SubscriptionsView onNavigate={(tab) => handleNavigate(tab)} />
+          <SubscriptionsView
+            onNavigate={(tab) => handleNavigate(tab)}
+            checkoutReturnInfo={checkoutReturnInfo}
+            onClearCheckoutReturn={() => setCheckoutReturnInfo(null)}
+          />
         )}
 
         {activeTab === 'profile' && (

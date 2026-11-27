@@ -28,6 +28,7 @@
         "updatedAt": { "type": "string", "maxLength": 64 },
         "subscriptionStatus": { "type": "string", "maxLength": 40 },
         "subscriptionPlan": { "type": "string", "maxLength": 40 },
+        "subscriptionPeriodStart": { "type": "string", "maxLength": 64 },
         "subscriptionPeriodEnd": { "type": "string", "maxLength": 64 },
         "cancelAtPeriodEnd": { "type": "boolean" },
         "stripeCustomerId": { "type": "string", "maxLength": 128 },

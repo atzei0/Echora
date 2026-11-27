@@ -52,13 +52,16 @@ export interface UserAccount {
   preferredLanguage?: Language;
   preferredNotation?: NoteNotation;
   subscriptionStatus?: string;
-  subscriptionPlan?: string;
-  subscriptionPeriodEnd?: string;
+  subscriptionPlan?: string | null;
+  subscriptionPeriodStart?: string | null;
+  subscriptionPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
   pendingPlan?: string | null;
   pendingPlanAmount?: number | null;
   pendingPlanStartsAt?: string | null;
+  nextChargeDate?: string | null;
   nextChargeAmount?: number | null;
+  nextChargeAmountUncertain?: boolean;
   role?: 'coach' | 'student';
   isCoach?: boolean;
 }
@@ -68,13 +71,16 @@ interface ServerAuthState {
   role: 'coach' | 'student';
   isSubscribed: boolean;
   subscriptionStatus: string;
-  subscriptionPlan?: string;
-  subscriptionPeriodEnd?: string;
+  subscriptionPlan?: string | null;
+  subscriptionPeriodStart?: string | null;
+  subscriptionPeriodEnd?: string | null;
   cancelAtPeriodEnd: boolean;
   pendingPlan: string | null;
   pendingPlanAmount: number | null;
   pendingPlanStartsAt: string | null;
+  nextChargeDate: string | null;
   nextChargeAmount: number | null;
+  nextChargeAmountUncertain: boolean;
 }
 
 const DEFAULT_SERVER_AUTH_STATE: ServerAuthState = {
@@ -82,15 +88,21 @@ const DEFAULT_SERVER_AUTH_STATE: ServerAuthState = {
   role: 'student',
   isSubscribed: false,
   subscriptionStatus: 'inactive',
+  subscriptionPlan: null,
+  subscriptionPeriodStart: null,
+  subscriptionPeriodEnd: null,
   cancelAtPeriodEnd: false,
   pendingPlan: null,
   pendingPlanAmount: null,
   pendingPlanStartsAt: null,
+  nextChargeDate: null,
   nextChargeAmount: null,
+  nextChargeAmountUncertain: false,
 };
 
 interface AuthContextType {
   user: UserAccount | null;
+  isAuthReady: boolean;
   isCoach: boolean;
   role: 'coach' | 'student';
   isCloudHydrated: boolean;
@@ -146,6 +158,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const SERVER_ONLY_USER_KEYS = new Set([
   'subscriptionStatus',
   'subscriptionPlan',
+  'subscriptionPeriodStart',
   'subscriptionPeriodEnd',
   'cancelAtPeriodEnd',
   'stripeCustomerId',
@@ -157,6 +170,9 @@ const SERVER_ONLY_USER_KEYS = new Set([
   'pendingPlanInvoiceItemId',
   'stripeScheduleId',
   'lastStripeEventCreated',
+  'nextChargeDate',
+  'nextChargeAmount',
+  'nextChargeAmountUncertain',
   'role',
   'isCoach',
   'emailVerified',
@@ -315,6 +331,9 @@ function clearUnscopedLocalKeys() {
     localStorage.removeItem('vocalis_recordings');
     localStorage.removeItem('echora_saved_custom_routines');
     localStorage.removeItem('echora_active_custom_routine_id');
+    localStorage.removeItem('echora_notation');
+    localStorage.removeItem('echora_auth_user');
+    localStorage.removeItem('echora_last_uid');
   } catch {}
 }
 
@@ -335,40 +354,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { language, setLanguage } = useLanguage();
   const isEn = language === 'en';
 
-  // Local snapshot only provides UI profile fields (never authorization or subscription status)
-  const [user, setUser] = useState<UserAccount | null>(() => {
-    try {
-      const saved = localStorage.getItem('echora_auth_user');
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      if (!parsed?.id || parsed.id.startsWith('usr_')) {
-        localStorage.removeItem('echora_auth_user');
-        return null;
-      }
-      return {
-        id: String(parsed.id),
-        name: sanitizePlainText(parsed.name || '', 160),
-        firstName: sanitizePlainText(parsed.firstName || '', INPUT_LIMITS.NAME_MAX),
-        lastName: sanitizePlainText(parsed.lastName || '', INPUT_LIMITS.NAME_MAX),
-        email: sanitizePlainText(parsed.email || '', INPUT_LIMITS.EMAIL_MAX),
-        provider: parsed.provider === 'google' ? 'google' : 'email',
-        avatarUrl: isSafeAvatarUrl(parsed.avatarUrl) ? parsed.avatarUrl : undefined,
-        vocalLevel: sanitizePlainText(parsed.vocalLevel || 'Allievo / Cantante', INPUT_LIMITS.VOCAL_LEVEL_MAX),
-        createdAt: sanitizePlainText(parsed.createdAt || '', 64),
-        emailVerified: false,
-        confirmationEmailSent: Boolean(parsed.confirmationEmailSent),
-        xp: typeof parsed.xp === 'number' ? parsed.xp : 150,
-        streakDays: typeof parsed.streakDays === 'number' ? parsed.streakDays : 1,
-        preferredLanguage: parsed.preferredLanguage === 'en' ? 'en' : 'it',
-        preferredNotation: parsed.preferredNotation === 'scientific' ? 'scientific' : 'latin',
-        role: 'student',
-        isCoach: false,
-        subscriptionStatus: 'inactive',
-      };
-    } catch {
-      return null;
-    }
-  });
+  // Never initialize authenticated user from unscoped localStorage; wait for Firebase Auth onAuthStateChanged
+  const [user, setUser] = useState<UserAccount | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const isAuthReadyRef = useRef<boolean>(false);
+
+  const updateAuthReady = (ready: boolean) => {
+    isAuthReadyRef.current = ready;
+    setIsAuthReady(ready);
+  };
 
   // Authoritative server-verified state — ONLY mutated by verified `/api/subscription-status` responses
   const [serverAuthState, setServerAuthState] = useState<ServerAuthState>(DEFAULT_SERVER_AUTH_STATE);
@@ -376,76 +370,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isCloudHydrated, setIsCloudHydrated] = useState<boolean>(false);
   const isCloudHydratedRef = useRef<boolean>(false);
   const isHydratingLanguageRef = useRef<boolean>(false);
+  const hydrationSeqRef = useRef<number>(0);
+  const activeUidRef = useRef<string | null>(null);
+  const pendingExplicitAuthFlowRef = useRef<boolean>(false);
+  const inFlightHydrationRef = useRef<{
+    uid: string;
+    seq: number;
+    hasHints: boolean;
+    promise: Promise<UserAccount>;
+  } | null>(null);
 
-  const initialUid = user?.id;
-
-  const [vocalProfile, setVocalProfile] = useState<VocalRangeProfile | null>(() => {
-    if (initialUid) {
-      const scoped = safeParseJSON<VocalRangeProfile | null>(
-        localStorage.getItem(`vocalis_profile_${initialUid}`),
-        null
-      );
-      if (scoped) return scoped;
-    }
-    return safeParseJSON<VocalRangeProfile | null>(localStorage.getItem('vocalis_profile'), null);
-  });
-
-  const [sessions, setSessions] = useState<PracticeSession[]>(() => {
-    if (initialUid) {
-      const scoped = safeParseJSON<PracticeSession[] | null>(
-        localStorage.getItem(`vocalis_sessions_${initialUid}`),
-        null
-      );
-      if (scoped) return scoped;
-    }
-    return safeParseJSON<PracticeSession[]>(localStorage.getItem('vocalis_sessions'), []);
-  });
-
-  const [customRoutines, setCustomRoutines] = useState<SavedCustomRoutine[]>(() => {
-    if (initialUid) {
-      const scoped = filterValidUserRoutines(
-        safeParseJSON<any[]>(localStorage.getItem(`echora_saved_custom_routines_${initialUid}`), [])
-      );
-      if (scoped.length > 0) return scoped;
-    }
-    const legacy = filterValidUserRoutines(
-      safeParseJSON<any[]>(localStorage.getItem('echora_saved_custom_routines'), [])
-    );
-    if (legacy.length > 0) return legacy;
-    return [createInitialBlankRoutine(isEn)];
-  });
-
-  const [activeCustomRoutineId, setActiveCustomRoutineIdState] = useState<string>(() => {
-    try {
-      const activeId = initialUid
-        ? localStorage.getItem(`echora_active_custom_routine_id_${initialUid}`) ||
-          localStorage.getItem('echora_active_custom_routine_id')
-        : localStorage.getItem('echora_active_custom_routine_id');
-      if (activeId && customRoutines.some((r) => r.id === activeId)) return activeId;
-    } catch {}
-    return customRoutines[0]?.id || '';
-  });
-
-  const [preferredNotation, setPreferredNotationState] = useState<NoteNotation>(() => {
-    try {
-      const saved = initialUid
-        ? localStorage.getItem(`echora_notation_${initialUid}`)
-        : localStorage.getItem('echora_notation');
-      if (saved === 'latin' || saved === 'scientific') return saved;
-    } catch {}
-    return 'latin';
-  });
-
-  const [recordings, setRecordings] = useState<SavedRecording[]>(() => {
-    if (initialUid) {
-      const scoped = safeParseJSON<SavedRecording[] | null>(
-        localStorage.getItem(`vocalis_recordings_${initialUid}`),
-        null
-      );
-      if (scoped) return scoped;
-    }
-    return safeParseJSON<SavedRecording[]>(localStorage.getItem('vocalis_recordings'), []);
-  });
+  const [vocalProfile, setVocalProfile] = useState<VocalRangeProfile | null>(null);
+  const [sessions, setSessions] = useState<PracticeSession[]>([]);
+  const [customRoutines, setCustomRoutines] = useState<SavedCustomRoutine[]>(() => [
+    createInitialBlankRoutine(isEn),
+  ]);
+  const [activeCustomRoutineId, setActiveCustomRoutineIdState] = useState<string>(
+    () => customRoutines[0]?.id || ''
+  );
+  const [preferredNotation, setPreferredNotationState] = useState<NoteNotation>('latin');
+  const [recordings, setRecordings] = useState<SavedRecording[]>([]);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -501,12 +445,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? 'coach_unlimited'
           : typeof data?.subscriptionPlan === 'string'
             ? data.subscriptionPlan
-            : undefined,
+            : null,
+        subscriptionPeriodStart: verifiedCoach
+          ? null
+          : typeof data?.subscriptionPeriodStart === 'string'
+            ? data.subscriptionPeriodStart
+            : null,
         subscriptionPeriodEnd: verifiedCoach
           ? '2099-12-31T23:59:59.000Z'
           : typeof data?.subscriptionPeriodEnd === 'string'
             ? data.subscriptionPeriodEnd
-            : undefined,
+            : null,
         cancelAtPeriodEnd: verifiedCoach ? false : Boolean(data?.cancelAtPeriodEnd),
         pendingPlan: verifiedCoach
           ? null
@@ -523,11 +472,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : typeof data?.pendingPlanStartsAt === 'string'
             ? data.pendingPlanStartsAt
             : null,
+        nextChargeDate: verifiedCoach
+          ? null
+          : typeof data?.nextChargeDate === 'string'
+            ? data.nextChargeDate
+            : null,
         nextChargeAmount: verifiedCoach
           ? null
           : typeof data?.nextChargeAmount === 'number'
             ? data.nextChargeAmount
             : null,
+        nextChargeAmountUncertain: verifiedCoach
+          ? false
+          : Boolean(data?.nextChargeAmountUncertain),
       };
     } catch {
       return DEFAULT_SERVER_AUTH_STATE;
@@ -540,10 +497,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
       return;
     }
+    const targetUid = fbUser.uid;
+    const seqAtStart = hydrationSeqRef.current;
     const nextState = await fetchVerifiedServerStatus(fbUser, forceTokenRefresh);
+    if (
+      seqAtStart !== hydrationSeqRef.current ||
+      activeUidRef.current !== targetUid ||
+      auth.currentUser?.uid !== targetUid
+    ) {
+      return;
+    }
     setServerAuthState(nextState);
     setUser((prev) =>
-      prev
+      prev && prev.id === targetUid
         ? {
             ...prev,
             role: nextState.role,
@@ -552,12 +518,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             vocalLevel: nextState.isCoach ? 'Insegnante / Vocal Coach' : prev.vocalLevel,
             subscriptionStatus: nextState.subscriptionStatus,
             subscriptionPlan: nextState.subscriptionPlan,
+            subscriptionPeriodStart: nextState.subscriptionPeriodStart,
             subscriptionPeriodEnd: nextState.subscriptionPeriodEnd,
             cancelAtPeriodEnd: nextState.cancelAtPeriodEnd,
             pendingPlan: nextState.pendingPlan,
             pendingPlanAmount: nextState.pendingPlanAmount,
             pendingPlanStartsAt: nextState.pendingPlanStartsAt,
+            nextChargeDate: nextState.nextChargeDate,
             nextChargeAmount: nextState.nextChargeAmount,
+            nextChargeAmountUncertain: nextState.nextChargeAmountUncertain,
           }
         : prev
     );
@@ -586,24 +555,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Save ONLY non-privileged profile fields to localStorage cache
+  // Save ONLY UID-scoped non-privileged profile fields to localStorage cache (never unscoped keys)
   const cacheUserSnapshotLocally = (acc: UserAccount) => {
+    if (
+      auth.currentUser?.uid !== acc.id ||
+      activeUidRef.current !== acc.id
+    ) {
+      return;
+    }
     setUser(acc);
     try {
-      const safeSnapshot = buildSafeLocalProfileSnapshot(acc);
-      localStorage.setItem('echora_auth_user', JSON.stringify(safeSnapshot));
+      clearUnscopedLocalKeys();
       if (acc.id) {
+        const safeSnapshot = buildSafeLocalProfileSnapshot(acc);
         const keys = getScopedKeys(acc.id);
         localStorage.setItem(keys.user, JSON.stringify(safeSnapshot));
-        localStorage.setItem('echora_last_uid', acc.id);
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  // Unified Cloud Hydration + Local Migration for authenticated users
-  const hydrateAndSyncUser = async (
+  const resetSessionUiState = () => {
+    isCloudHydratedRef.current = false;
+    isHydratingLanguageRef.current = false;
+    setIsCloudHydrated(false);
+    setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
+    setUser(null);
+    setVocalProfile(null);
+    setSessions([]);
+    const blankRoutine = createInitialBlankRoutine(language === 'en');
+    setCustomRoutines([blankRoutine]);
+    setActiveCustomRoutineIdState(blankRoutine.id);
+    setPreferredNotationState('latin');
+    setRecordings([]);
+  };
+
+  const isHydrationCurrent = (seq: number, uid: string): boolean => {
+    return (
+      seq === hydrationSeqRef.current &&
+      activeUidRef.current === uid &&
+      auth.currentUser?.uid === uid
+    );
+  };
+
+  // Unified Cloud Hydration for authenticated users (strictly UID-scoped, zero unscoped/global storage)
+  const hydrateAndSyncUser = (
     fbUser: FirebaseUser,
     hints?: {
       firstName?: string;
@@ -613,297 +610,380 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       provider?: 'email' | 'google';
     }
   ): Promise<UserAccount> => {
+    const uid = fbUser.uid;
+    const hasHints = Boolean(hints);
+
+    // Deduplicate concurrent hydrations for the same UID so login flows and onAuthStateChanged never race
+    if (
+      inFlightHydrationRef.current &&
+      inFlightHydrationRef.current.uid === uid &&
+      (!hasHints || inFlightHydrationRef.current.hasHints)
+    ) {
+      return inFlightHydrationRef.current.promise;
+    }
+
+    if (activeUidRef.current !== uid) {
+      updateAuthReady(false);
+      resetSessionUiState();
+    }
+
+    const seq = ++hydrationSeqRef.current;
+    activeUidRef.current = uid;
     isCloudHydratedRef.current = false;
     setIsCloudHydrated(false);
 
-    const uid = fbUser.uid;
-    const scopedKeys = getScopedKeys(uid);
+    const runHydration = async (): Promise<UserAccount> => {
+      clearUnscopedLocalKeys();
+      const scopedKeys = getScopedKeys(uid);
 
-    const lastUid = localStorage.getItem('echora_last_uid');
-    const canMigrateUnscoped = !lastUid || lastUid === uid;
+      const scopedProfile = safeParseJSON<VocalRangeProfile | null>(
+        localStorage.getItem(scopedKeys.profile),
+        null
+      );
+      const scopedSessions = safeParseJSON<PracticeSession[]>(
+        localStorage.getItem(scopedKeys.sessions),
+        []
+      );
+      const scopedRoutines = filterValidUserRoutines(
+        safeParseJSON<any[]>(localStorage.getItem(scopedKeys.routines), [])
+      );
+      const scopedActiveRoutineId = localStorage.getItem(scopedKeys.activeRoutineId);
+      const scopedRecordings = safeParseJSON<SavedRecording[]>(
+        localStorage.getItem(scopedKeys.recordings),
+        []
+      );
+      const scopedLang = localStorage.getItem(scopedKeys.language) as Language | null;
+      const scopedNotation = localStorage.getItem(scopedKeys.notation) as NoteNotation | null;
 
-    const scopedProfile = safeParseJSON<VocalRangeProfile | null>(
-      localStorage.getItem(scopedKeys.profile),
-      null
-    );
-    const scopedSessions = safeParseJSON<PracticeSession[]>(
-      localStorage.getItem(scopedKeys.sessions),
-      []
-    );
-    const scopedRoutines = filterValidUserRoutines(
-      safeParseJSON<any[]>(localStorage.getItem(scopedKeys.routines), [])
-    );
-    const scopedActiveRoutineId = localStorage.getItem(scopedKeys.activeRoutineId);
-    const scopedRecordings = safeParseJSON<SavedRecording[]>(
-      localStorage.getItem(scopedKeys.recordings),
-      []
-    );
-    const scopedLang = localStorage.getItem(scopedKeys.language) as Language | null;
-    const scopedNotation = localStorage.getItem(scopedKeys.notation) as NoteNotation | null;
+      let cloudData: Record<string, any> | null = null;
+      let cloudDocExists = false;
+      let cloudReadFailed = false;
+      try {
+        if (db) {
+          const userRef = doc(db, 'users', uid);
+          const snap = await getDoc(userRef);
+          if (!isHydrationCurrent(seq, uid)) {
+            return {
+              id: uid,
+              name: fbUser.displayName || 'Utente Echora',
+              firstName: hints?.firstName || 'Utente',
+              lastName: hints?.lastName || 'Echora',
+              email: fbUser.email || '',
+              provider: hints?.provider === 'google' ? 'google' : 'email',
+              createdAt: '',
+              emailVerified: fbUser.emailVerified,
+              confirmationEmailSent: false,
+            };
+          }
+          if (snap.exists()) {
+            cloudDocExists = true;
+            cloudData = snap.data();
+          }
+        } else {
+          cloudReadFailed = true;
+        }
+      } catch (err) {
+        cloudReadFailed = true;
+        if (!isHydrationCurrent(seq, uid)) {
+          return {
+            id: uid,
+            name: fbUser.displayName || 'Utente Echora',
+            firstName: hints?.firstName || 'Utente',
+            lastName: hints?.lastName || 'Echora',
+            email: fbUser.email || '',
+            provider: hints?.provider === 'google' ? 'google' : 'email',
+            createdAt: '',
+            emailVerified: fbUser.emailVerified,
+            confirmationEmailSent: false,
+          };
+        }
+        handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+      }
 
-    const legacyProfile = canMigrateUnscoped
-      ? safeParseJSON<VocalRangeProfile | null>(localStorage.getItem('vocalis_profile'), null)
-      : null;
-    const legacySessions = canMigrateUnscoped
-      ? safeParseJSON<PracticeSession[]>(localStorage.getItem('vocalis_sessions'), [])
-      : [];
-    const legacyRoutines = canMigrateUnscoped
-      ? filterValidUserRoutines(
-          safeParseJSON<any[]>(localStorage.getItem('echora_saved_custom_routines'), [])
-        )
-      : [];
-    const legacyActiveRoutineId = canMigrateUnscoped
-      ? localStorage.getItem('echora_active_custom_routine_id')
-      : null;
-    const legacyRecordings = canMigrateUnscoped
-      ? safeParseJSON<SavedRecording[]>(localStorage.getItem('vocalis_recordings'), [])
-      : [];
+      if (!isHydrationCurrent(seq, uid)) {
+        return {
+          id: uid,
+          name: fbUser.displayName || 'Utente Echora',
+          firstName: hints?.firstName || 'Utente',
+          lastName: hints?.lastName || 'Echora',
+          email: fbUser.email || '',
+          provider: hints?.provider === 'google' ? 'google' : 'email',
+          createdAt: '',
+          emailVerified: fbUser.emailVerified,
+          confirmationEmailSent: false,
+        };
+      }
 
-    let cloudData: Record<string, any> | null = null;
-    let cloudDocExists = false;
-    try {
-      if (db) {
-        const userRef = doc(db, 'users', uid);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          cloudDocExists = true;
-          cloudData = snap.data();
+      const recordingsMap = new Map<string, SavedRecording>();
+      for (const rec of scopedRecordings) {
+        if (rec && rec.id && !recordingsMap.has(rec.id)) {
+          recordingsMap.set(rec.id, rec);
         }
       }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
-    }
+      const mergedRecordings = Array.from(recordingsMap.values());
 
-    const recordingsMap = new Map<string, SavedRecording>();
-    for (const rec of [...scopedRecordings, ...legacyRecordings]) {
-      if (rec && rec.id && !recordingsMap.has(rec.id)) {
-        recordingsMap.set(rec.id, rec);
+      const mergedVocalProfile: VocalRangeProfile | null =
+        cloudData?.vocalProfile || scopedProfile || null;
+
+      const mergedSessions = mergePracticeSessions(
+        Array.isArray(cloudData?.practiceSessions) ? cloudData.practiceSessions : [],
+        scopedSessions
+      );
+
+      const mergedRoutinesRaw = mergeCustomRoutines(
+        Array.isArray(cloudData?.customRoutines) ? cloudData.customRoutines : [],
+        scopedRoutines
+      );
+      const mergedRoutines =
+        mergedRoutinesRaw.length > 0
+          ? mergedRoutinesRaw
+          : [createInitialBlankRoutine(language === 'en')];
+
+      const candidateActiveId =
+        cloudData?.activeCustomRoutineId || scopedActiveRoutineId || '';
+      const mergedActiveRoutineId = mergedRoutines.some((r) => r.id === candidateActiveId)
+        ? candidateActiveId
+        : mergedRoutines[0]?.id || '';
+
+      const mergedLanguage: Language =
+        cloudData?.preferredLanguage === 'en' || cloudData?.preferredLanguage === 'it'
+          ? cloudData.preferredLanguage
+          : scopedLang === 'en' || scopedLang === 'it'
+            ? scopedLang
+            : language;
+
+      const mergedNotation: NoteNotation =
+        cloudData?.preferredNotation === 'latin' || cloudData?.preferredNotation === 'scientific'
+          ? cloudData.preferredNotation
+          : scopedNotation === 'latin' || scopedNotation === 'scientific'
+            ? scopedNotation
+            : 'latin';
+
+      const isGoogle =
+        hints?.provider === 'google' ||
+        cloudData?.provider === 'google' ||
+        fbUser.providerData.some((p) => p.providerId === 'google.com');
+      const provider: 'email' | 'google' = isGoogle ? 'google' : 'email';
+
+      const fallbackFullName =
+        fbUser.displayName ||
+        `${hints?.firstName || 'Utente'} ${hints?.lastName || 'Echora'}`.trim();
+      const fallbackParts = fallbackFullName.split(' ');
+      const firstName = sanitizePlainText(
+        cloudData?.firstName || hints?.firstName || fallbackParts[0] || 'Utente',
+        INPUT_LIMITS.NAME_MAX
+      );
+      const lastName = sanitizePlainText(
+        cloudData?.lastName !== undefined
+          ? cloudData.lastName
+          : hints?.lastName !== undefined
+            ? hints.lastName
+            : fallbackParts.slice(1).join(' ') || '',
+        INPUT_LIMITS.NAME_MAX
+      );
+      const fullName = sanitizePlainText(
+        cloudData?.name || `${firstName} ${lastName}`.trim() || fallbackFullName,
+        160
+      );
+
+      // Server-side cryptographic verification of subscription status & Coach authorization
+      // CRITICAL: Never mutate serverAuthState or user before verifying seq & active UID match
+      const verifiedServer = await fetchVerifiedServerStatus(fbUser, false);
+      if (!isHydrationCurrent(seq, uid)) {
+        return {
+          id: uid,
+          name: fbUser.displayName || 'Utente Echora',
+          firstName: hints?.firstName || 'Utente',
+          lastName: hints?.lastName || 'Echora',
+          email: fbUser.email || '',
+          provider: hints?.provider === 'google' ? 'google' : 'email',
+          createdAt: '',
+          emailVerified: fbUser.emailVerified,
+          confirmationEmailSent: false,
+        };
       }
-    }
-    const mergedRecordings = Array.from(recordingsMap.values());
 
-    const mergedVocalProfile: VocalRangeProfile | null =
-      cloudData?.vocalProfile || scopedProfile || legacyProfile || null;
+      const safeEmail = fbUser.email || cloudData?.email || hints?.email || '';
+      const safeAvatar = isSafeAvatarUrl(cloudData?.avatarUrl)
+        ? cloudData?.avatarUrl
+        : isSafeAvatarUrl(fbUser.photoURL)
+          ? fbUser.photoURL || undefined
+          : undefined;
 
-    const mergedSessions = mergePracticeSessions(
-      Array.isArray(cloudData?.practiceSessions) ? cloudData.practiceSessions : [],
-      scopedSessions,
-      legacySessions
-    );
+      const rawVocalLevel = cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante';
+      const safeVocalLevel = verifiedServer.isCoach
+        ? 'Insegnante / Vocal Coach'
+        : ALLOWED_VOCAL_LEVELS.has(rawVocalLevel)
+          ? rawVocalLevel
+          : 'Allievo / Cantante';
 
-    const mergedRoutinesRaw = mergeCustomRoutines(
-      Array.isArray(cloudData?.customRoutines) ? cloudData.customRoutines : [],
-      scopedRoutines,
-      legacyRoutines
-    );
-    const mergedRoutines =
-      mergedRoutinesRaw.length > 0
-        ? mergedRoutinesRaw
-        : [createInitialBlankRoutine(language === 'en')];
+      const profile: UserAccount = {
+        id: uid,
+        name: fullName,
+        firstName,
+        lastName,
+        email: safeEmail,
+        provider,
+        avatarUrl: safeAvatar,
+        vocalLevel: safeVocalLevel,
+        role: verifiedServer.role,
+        isCoach: verifiedServer.isCoach,
+        createdAt: cloudData?.createdAt || new Date().toLocaleDateString('it-IT'),
+        emailVerified: fbUser.emailVerified,
+        confirmationEmailSent: Boolean(cloudData?.confirmationEmailSent ?? fbUser.emailVerified),
+        xp: isGoogle ? 250 : 150,
+        streakDays: isGoogle ? 2 : 1,
+        vocalProfile: mergedVocalProfile,
+        customRoutines: mergedRoutines,
+        activeCustomRoutineId: mergedActiveRoutineId,
+        practiceSessions: mergedSessions,
+        preferredLanguage: mergedLanguage,
+        preferredNotation: mergedNotation,
+        subscriptionStatus: verifiedServer.subscriptionStatus,
+        subscriptionPlan: verifiedServer.subscriptionPlan,
+        subscriptionPeriodStart: verifiedServer.subscriptionPeriodStart,
+        subscriptionPeriodEnd: verifiedServer.subscriptionPeriodEnd,
+        cancelAtPeriodEnd: verifiedServer.cancelAtPeriodEnd,
+        pendingPlan: verifiedServer.pendingPlan,
+        pendingPlanAmount: verifiedServer.pendingPlanAmount,
+        pendingPlanStartsAt: verifiedServer.pendingPlanStartsAt,
+        nextChargeDate: verifiedServer.nextChargeDate,
+        nextChargeAmount: verifiedServer.nextChargeAmount,
+        nextChargeAmountUncertain: verifiedServer.nextChargeAmountUncertain,
+      };
 
-    const candidateActiveId =
-      cloudData?.activeCustomRoutineId || scopedActiveRoutineId || legacyActiveRoutineId || '';
-    const mergedActiveRoutineId = mergedRoutines.some((r) => r.id === candidateActiveId)
-      ? candidateActiveId
-      : mergedRoutines[0]?.id || '';
+      if (!isHydrationCurrent(seq, uid)) {
+        return profile;
+      }
 
-    const mergedLanguage: Language =
-      cloudData?.preferredLanguage === 'en' || cloudData?.preferredLanguage === 'it'
-        ? cloudData.preferredLanguage
-        : scopedLang === 'en' || scopedLang === 'it'
-          ? scopedLang
-          : language;
+      setServerAuthState(verifiedServer);
+      setVocalProfile(mergedVocalProfile);
+      setSessions(mergedSessions);
+      setCustomRoutines(mergedRoutines);
+      setActiveCustomRoutineIdState(mergedActiveRoutineId);
+      setPreferredNotationState(mergedNotation);
+      setRecordings(mergedRecordings);
 
-    const mergedNotation: NoteNotation =
-      cloudData?.preferredNotation === 'latin' || cloudData?.preferredNotation === 'scientific'
-        ? cloudData.preferredNotation
-        : scopedNotation === 'latin' || scopedNotation === 'scientific'
-          ? scopedNotation
-          : preferredNotation;
+      if (mergedLanguage !== language) {
+        isHydratingLanguageRef.current = true;
+        setLanguage(mergedLanguage);
+        setTimeout(() => {
+          if (isHydrationCurrent(seq, uid)) {
+            isHydratingLanguageRef.current = false;
+          }
+        }, 0);
+      }
 
-    const isGoogle =
-      hints?.provider === 'google' ||
-      cloudData?.provider === 'google' ||
-      fbUser.providerData.some((p) => p.providerId === 'google.com');
-    const provider: 'email' | 'google' = isGoogle ? 'google' : 'email';
+      try {
+        if (mergedVocalProfile) {
+          localStorage.setItem(scopedKeys.profile, JSON.stringify(mergedVocalProfile));
+        } else {
+          localStorage.removeItem(scopedKeys.profile);
+        }
+        localStorage.setItem(scopedKeys.sessions, JSON.stringify(mergedSessions));
+        localStorage.setItem(scopedKeys.routines, JSON.stringify(mergedRoutines));
+        localStorage.setItem(scopedKeys.activeRoutineId, mergedActiveRoutineId);
+        localStorage.setItem(scopedKeys.recordings, JSON.stringify(mergedRecordings));
+        localStorage.setItem(scopedKeys.language, mergedLanguage);
+        localStorage.setItem(scopedKeys.notation, mergedNotation);
+      } catch (e) {
+        console.error('Error writing UID-scoped local cache:', e);
+      }
 
-    const fallbackFullName =
-      fbUser.displayName ||
-      `${hints?.firstName || 'Utente'} ${hints?.lastName || 'Echora'}`.trim();
-    const fallbackParts = fallbackFullName.split(' ');
-    const firstName = sanitizePlainText(
-      cloudData?.firstName || hints?.firstName || fallbackParts[0] || 'Utente',
-      INPUT_LIMITS.NAME_MAX
-    );
-    const lastName = sanitizePlainText(
-      cloudData?.lastName !== undefined
-        ? cloudData.lastName
-        : hints?.lastName !== undefined
-          ? hints.lastName
-          : fallbackParts.slice(1).join(' ') || '',
-      INPUT_LIMITS.NAME_MAX
-    );
-    const fullName = sanitizePlainText(
-      cloudData?.name || `${firstName} ${lastName}`.trim() || fallbackFullName,
-      160
-    );
+      clearUnscopedLocalKeys();
+      cacheUserSnapshotLocally(profile);
 
-    // Server-side cryptographic verification of subscription status & Coach authorization
-    const verifiedServer = await fetchVerifiedServerStatus(fbUser, false);
-    setServerAuthState(verifiedServer);
+      if (!cloudReadFailed) {
+        isCloudHydratedRef.current = true;
+        setIsCloudHydrated(true);
+      }
+      updateAuthReady(true);
 
-    const safeEmail = fbUser.email || cloudData?.email || hints?.email || '';
-    const safeAvatar = isSafeAvatarUrl(cloudData?.avatarUrl)
-      ? cloudData?.avatarUrl
-      : isSafeAvatarUrl(fbUser.photoURL)
-        ? fbUser.photoURL || undefined
-        : undefined;
+      if (cloudReadFailed || !isHydrationCurrent(seq, uid)) {
+        return profile;
+      }
 
-    const rawVocalLevel = cloudData?.vocalLevel || hints?.vocalLevel || 'Allievo / Cantante';
-    const safeVocalLevel = verifiedServer.isCoach
-      ? 'Insegnante / Vocal Coach'
-      : ALLOWED_VOCAL_LEVELS.has(rawVocalLevel)
-        ? rawVocalLevel
-        : 'Allievo / Cantante';
+      // Sync non-privileged profile & progress fields to Firestore only when cloud read succeeded
+      if (!cloudDocExists) {
+        await writeUserFieldsToFirestore(
+          uid,
+          {
+            uid: profile.id,
+            email: fbUser.email || '',
+            createdAt: profile.createdAt,
+            name: profile.name,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            provider: profile.provider,
+            avatarUrl: profile.avatarUrl || '',
+            vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
+            vocalProfile: profile.vocalProfile,
+            customRoutines: profile.customRoutines,
+            activeCustomRoutineId: profile.activeCustomRoutineId,
+            practiceSessions: profile.practiceSessions,
+            preferredLanguage: profile.preferredLanguage,
+            preferredNotation: profile.preferredNotation,
+            confirmationEmailSent: profile.confirmationEmailSent,
+          },
+          true
+        );
+      } else {
+        await writeUserFieldsToFirestore(
+          uid,
+          {
+            name: profile.name,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            provider: profile.provider,
+            avatarUrl: profile.avatarUrl || '',
+            vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
+            vocalProfile: profile.vocalProfile,
+            customRoutines: profile.customRoutines,
+            activeCustomRoutineId: profile.activeCustomRoutineId,
+            practiceSessions: profile.practiceSessions,
+            preferredLanguage: profile.preferredLanguage,
+            preferredNotation: profile.preferredNotation,
+          },
+          false
+        );
+      }
 
-    const profile: UserAccount = {
-      id: uid,
-      name: fullName,
-      firstName,
-      lastName,
-      email: safeEmail,
-      provider,
-      avatarUrl: safeAvatar,
-      vocalLevel: safeVocalLevel,
-      role: verifiedServer.role,
-      isCoach: verifiedServer.isCoach,
-      createdAt: cloudData?.createdAt || new Date().toLocaleDateString('it-IT'),
-      emailVerified: fbUser.emailVerified,
-      confirmationEmailSent: Boolean(cloudData?.confirmationEmailSent ?? fbUser.emailVerified),
-      xp: isGoogle ? 250 : 150,
-      streakDays: isGoogle ? 2 : 1,
-      vocalProfile: mergedVocalProfile,
-      customRoutines: mergedRoutines,
-      activeCustomRoutineId: mergedActiveRoutineId,
-      practiceSessions: mergedSessions,
-      preferredLanguage: mergedLanguage,
-      preferredNotation: mergedNotation,
-      subscriptionStatus: verifiedServer.subscriptionStatus,
-      subscriptionPlan: verifiedServer.subscriptionPlan,
-      subscriptionPeriodEnd: verifiedServer.subscriptionPeriodEnd,
-      cancelAtPeriodEnd: verifiedServer.cancelAtPeriodEnd,
-      pendingPlan: verifiedServer.pendingPlan,
-      pendingPlanAmount: verifiedServer.pendingPlanAmount,
-      pendingPlanStartsAt: verifiedServer.pendingPlanStartsAt,
-      nextChargeAmount: verifiedServer.nextChargeAmount,
+      return profile;
     };
 
-    setVocalProfile(mergedVocalProfile);
-    setSessions(mergedSessions);
-    setCustomRoutines(mergedRoutines);
-    setActiveCustomRoutineIdState(mergedActiveRoutineId);
-    setPreferredNotationState(mergedNotation);
-    setRecordings(mergedRecordings);
-
-    if (mergedLanguage !== language) {
-      isHydratingLanguageRef.current = true;
-      setLanguage(mergedLanguage);
-      setTimeout(() => {
-        isHydratingLanguageRef.current = false;
-      }, 0);
-    }
-
-    try {
-      if (mergedVocalProfile) {
-        localStorage.setItem(scopedKeys.profile, JSON.stringify(mergedVocalProfile));
-      } else {
-        localStorage.removeItem(scopedKeys.profile);
+    const promise = runHydration().finally(() => {
+      if (inFlightHydrationRef.current?.seq === seq) {
+        inFlightHydrationRef.current = null;
       }
-      localStorage.setItem(scopedKeys.sessions, JSON.stringify(mergedSessions));
-      localStorage.setItem(scopedKeys.routines, JSON.stringify(mergedRoutines));
-      localStorage.setItem(scopedKeys.activeRoutineId, mergedActiveRoutineId);
-      localStorage.setItem(scopedKeys.recordings, JSON.stringify(mergedRecordings));
-      localStorage.setItem(scopedKeys.language, mergedLanguage);
-      localStorage.setItem(scopedKeys.notation, mergedNotation);
-    } catch (e) {
-      console.error('Error writing UID-scoped local cache:', e);
-    }
-
-    clearUnscopedLocalKeys();
-    cacheUserSnapshotLocally(profile);
-
-    isCloudHydratedRef.current = true;
-    setIsCloudHydrated(true);
-
-    // Sync non-privileged profile & progress fields to Firestore
-    if (!cloudDocExists) {
-      await writeUserFieldsToFirestore(
-        uid,
-        {
-          uid: profile.id,
-          email: fbUser.email || '',
-          createdAt: profile.createdAt,
-          name: profile.name,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          provider: profile.provider,
-          avatarUrl: profile.avatarUrl || '',
-          vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
-          vocalProfile: profile.vocalProfile,
-          customRoutines: profile.customRoutines,
-          activeCustomRoutineId: profile.activeCustomRoutineId,
-          practiceSessions: profile.practiceSessions,
-          preferredLanguage: profile.preferredLanguage,
-          preferredNotation: profile.preferredNotation,
-          confirmationEmailSent: profile.confirmationEmailSent,
-        },
-        true
-      );
-    } else {
-      await writeUserFieldsToFirestore(
-        uid,
-        {
-          name: profile.name,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          provider: profile.provider,
-          avatarUrl: profile.avatarUrl || '',
-          vocalLevel: profile.vocalLevel || 'Allievo / Cantante',
-          vocalProfile: profile.vocalProfile,
-          customRoutines: profile.customRoutines,
-          activeCustomRoutineId: profile.activeCustomRoutineId,
-          practiceSessions: profile.practiceSessions,
-          preferredLanguage: profile.preferredLanguage,
-          preferredNotation: profile.preferredNotation,
-        },
-        false
-      );
-    }
-
-    return profile;
+    });
+    inFlightHydrationRef.current = { uid, seq, hasHints, promise };
+    return promise;
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
       if (fbUser) {
-        await hydrateAndSyncUser(fbUser);
-      } else {
-        isCloudHydratedRef.current = false;
-        setIsCloudHydrated(false);
-        setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
-        setUser(null);
-        setVocalProfile(null);
-        setSessions([]);
-        const blankRoutine = createInitialBlankRoutine(language === 'en');
-        setCustomRoutines([blankRoutine]);
-        setActiveCustomRoutineIdState(blankRoutine.id);
-        setRecordings([]);
-        try {
-          localStorage.removeItem('echora_auth_user');
-          clearUnscopedLocalKeys();
-        } catch (e) {
-          console.error(e);
+        const uidChanged = activeUidRef.current !== fbUser.uid;
+        if (uidChanged) {
+          hydrationSeqRef.current += 1;
+          updateAuthReady(false);
+          resetSessionUiState();
         }
+        if (pendingExplicitAuthFlowRef.current) {
+          activeUidRef.current = fbUser.uid;
+          return;
+        }
+        await hydrateAndSyncUser(fbUser);
+        if (activeUidRef.current === fbUser.uid && auth.currentUser?.uid === fbUser.uid) {
+          updateAuthReady(true);
+        }
+      } else {
+        hydrationSeqRef.current += 1;
+        activeUidRef.current = null;
+        inFlightHydrationRef.current = null;
+        resetSessionUiState();
+        clearUnscopedLocalKeys();
+        updateAuthReady(true);
       }
     });
 
@@ -911,7 +991,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (!user?.id || !isCloudHydratedRef.current || isHydratingLanguageRef.current) return;
+    if (
+      !isAuthReadyRef.current ||
+      !user?.id ||
+      activeUidRef.current !== user.id ||
+      auth.currentUser?.uid !== user.id ||
+      !isCloudHydratedRef.current ||
+      isHydratingLanguageRef.current
+    ) {
+      return;
+    }
     if (user.preferredLanguage === language) return;
 
     const scopedKeys = getScopedKeys(user.id);
@@ -928,8 +1017,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [language]);
 
   const saveVocalProfile = (profile: VocalRangeProfile) => {
-    setVocalProfile(profile);
+    if (!isAuthReadyRef.current) return;
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setVocalProfile(profile);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.profile, JSON.stringify(profile));
@@ -947,16 +1038,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeUserFieldsToFirestore(user.id, {
         vocalProfile: profile,
       });
-    } else {
-      try {
-        localStorage.setItem('vocalis_profile', JSON.stringify(profile));
-      } catch (e) {
-        console.error(e);
-      }
+    } else if (!auth.currentUser) {
+      setVocalProfile(profile);
     }
   };
 
   const recordExerciseCompletion = (title: string, durationSec: number) => {
+    if (!isAuthReadyRef.current) return;
     const safeTitle = sanitizePlainText(title, 120) || 'Esercizio Vocale';
     const safeDuration = Math.max(0, Math.min(36000, Number(durationSec) || 0));
     const mins = safeDuration / 60;
@@ -968,9 +1056,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const updatedSessions = [newSession, ...sessions].slice(0, 500);
-    setSessions(updatedSessions);
 
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setSessions(updatedSessions);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.sessions, JSON.stringify(updatedSessions));
@@ -988,16 +1077,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeUserFieldsToFirestore(user.id, {
         practiceSessions: updatedSessions,
       });
-    } else {
-      try {
-        localStorage.setItem('vocalis_sessions', JSON.stringify(updatedSessions));
-      } catch (e) {
-        console.error(e);
-      }
+    } else if (!auth.currentUser) {
+      setSessions(updatedSessions);
     }
   };
 
   const saveCustomRoutines = (routines: SavedCustomRoutine[], activeId?: string) => {
+    if (!isAuthReadyRef.current) return;
     const cleanRoutines = filterValidUserRoutines(routines);
     const finalRoutines =
       cleanRoutines.length > 0 ? cleanRoutines : [createInitialBlankRoutine(isEn)];
@@ -1008,10 +1094,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? activeCustomRoutineId
           : finalRoutines[0].id;
 
-    setCustomRoutines(finalRoutines);
-    setActiveCustomRoutineIdState(nextActiveId);
-
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setCustomRoutines(finalRoutines);
+      setActiveCustomRoutineIdState(nextActiveId);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.routines, JSON.stringify(finalRoutines));
@@ -1032,20 +1118,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         customRoutines: finalRoutines,
         activeCustomRoutineId: nextActiveId,
       });
-    } else {
-      try {
-        localStorage.setItem('echora_saved_custom_routines', JSON.stringify(finalRoutines));
-        localStorage.setItem('echora_active_custom_routine_id', nextActiveId);
-      } catch (e) {
-        console.error(e);
-      }
+    } else if (!auth.currentUser) {
+      setCustomRoutines(finalRoutines);
+      setActiveCustomRoutineIdState(nextActiveId);
     }
   };
 
   const setActiveCustomRoutineId = (id: string) => {
+    if (!isAuthReadyRef.current) return;
     const safeId = sanitizePlainText(id, 128);
-    setActiveCustomRoutineIdState(safeId);
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setActiveCustomRoutineIdState(safeId);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.activeRoutineId, safeId);
@@ -1061,16 +1145,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeUserFieldsToFirestore(user.id, {
         activeCustomRoutineId: safeId,
       });
-    } else {
-      try {
-        localStorage.setItem('echora_active_custom_routine_id', safeId);
-      } catch {}
+    } else if (!auth.currentUser) {
+      setActiveCustomRoutineIdState(safeId);
     }
   };
 
   const setPreferredNotation = (notation: NoteNotation) => {
-    setPreferredNotationState(notation);
+    if (!isAuthReadyRef.current) return;
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setPreferredNotationState(notation);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.notation, notation);
@@ -1086,53 +1170,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeUserFieldsToFirestore(user.id, {
         preferredNotation: notation,
       });
-    } else {
-      try {
-        localStorage.setItem('echora_notation', notation);
-      } catch {}
+    } else if (!auth.currentUser) {
+      setPreferredNotationState(notation);
     }
   };
 
   const saveRecording = (rec: SavedRecording) => {
+    if (!isAuthReadyRef.current) return;
     const sanitizedRec: SavedRecording = {
       ...rec,
       exerciseTitle: sanitizePlainText(rec.exerciseTitle, INPUT_LIMITS.RECORDING_NAME_MAX) || 'Registrazione Canto',
       note: sanitizePlainText(rec.note || '', INPUT_LIMITS.RECORDING_NOTE_MAX, true),
     };
     const updated = [sanitizedRec, ...recordings];
-    setRecordings(updated);
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setRecordings(updated);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.recordings, JSON.stringify(updated));
       } catch (e) {
         console.error(e);
       }
-    } else {
-      try {
-        localStorage.setItem('vocalis_recordings', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+    } else if (!auth.currentUser) {
+      setRecordings(updated);
     }
   };
 
   const deleteRecording = (id: string) => {
+    if (!isAuthReadyRef.current) return;
     const updated = recordings.filter((r) => r.id !== id);
-    setRecordings(updated);
     if (user?.id) {
+      if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
+      setRecordings(updated);
       const scopedKeys = getScopedKeys(user.id);
       try {
         localStorage.setItem(scopedKeys.recordings, JSON.stringify(updated));
       } catch (e) {
         console.error(e);
       }
-    } else {
-      try {
-        localStorage.setItem('vocalis_recordings', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+    } else if (!auth.currentUser) {
+      setRecordings(updated);
     }
   };
 
@@ -1146,7 +1224,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = (updates: Partial<UserAccount>) => {
-    if (!user) return;
+    if (!isAuthReadyRef.current || !user) return;
+    if (activeUidRef.current !== user.id || auth.currentUser?.uid !== user.id) return;
 
     // Filter out privileged & immutable fields so clients can never alter role/subscription/email
     const safeUpdates: Record<string, any> = {};
@@ -1249,6 +1328,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Inserisci un indirizzo email e una password validi.');
     }
 
+    let hydrationCompleted = false;
+    pendingExplicitAuthFlowRef.current = true;
+    if (activeUidRef.current) {
+      hydrationSeqRef.current += 1;
+      inFlightHydrationRef.current = null;
+      activeUidRef.current = null;
+      updateAuthReady(false);
+      resetSessionUiState();
+    }
     try {
       const res = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       const fbUser = res.user;
@@ -1257,17 +1345,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const first = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Cantante';
       const last = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : 'Echora';
 
+      pendingExplicitAuthFlowRef.current = false;
       await hydrateAndSyncUser(fbUser, {
         firstName: first,
         lastName: last,
         email: cleanEmail,
         provider: 'email',
       });
+      hydrationCompleted = true;
       closeAuthModal();
       return true;
     } catch (err) {
       console.error('Firebase email login failed:', err);
       throw err;
+    } finally {
+      pendingExplicitAuthFlowRef.current = false;
+      if (!hydrationCompleted) {
+        if (auth.currentUser) {
+          void hydrateAndSyncUser(auth.currentUser);
+        } else {
+          updateAuthReady(true);
+        }
+      }
     }
   };
 
@@ -1298,12 +1397,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const safeVocalLevel = ALLOWED_VOCAL_LEVELS.has(vocalLevel) ? vocalLevel : 'Allievo / Cantante';
     const fullName = `${firstCheck.cleaned} ${lastCheck.cleaned}`;
 
+    let hydrationCompleted = false;
+    pendingExplicitAuthFlowRef.current = true;
+    if (activeUidRef.current) {
+      hydrationSeqRef.current += 1;
+      inFlightHydrationRef.current = null;
+      activeUidRef.current = null;
+      updateAuthReady(false);
+      resetSessionUiState();
+    }
     try {
       const res = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       const fbUser = res.user;
       await updateProfile(fbUser, { displayName: fullName });
       await sendEmailVerification(fbUser).catch(() => null);
 
+      pendingExplicitAuthFlowRef.current = false;
       await hydrateAndSyncUser(fbUser, {
         firstName: firstCheck.cleaned,
         lastName: lastCheck.cleaned,
@@ -1311,6 +1420,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         vocalLevel: safeVocalLevel,
         provider: 'email',
       });
+      hydrationCompleted = true;
       setLastRegistrationNotification(
         `Account creato con successo! Ti abbiamo inviato un'email di verifica all'indirizzo ${cleanEmail}.`
       );
@@ -1319,6 +1429,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Firebase signup error:', err);
       throw err;
+    } finally {
+      pendingExplicitAuthFlowRef.current = false;
+      if (!hydrationCompleted) {
+        if (auth.currentUser) {
+          void hydrateAndSyncUser(auth.currentUser);
+        } else {
+          updateAuthReady(true);
+        }
+      }
     }
   };
 
@@ -1335,6 +1454,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     customLastName?: string,
     googleEmail?: string
   ): Promise<boolean> => {
+    let hydrationCompleted = false;
+    pendingExplicitAuthFlowRef.current = true;
+    if (activeUidRef.current) {
+      hydrationSeqRef.current += 1;
+      inFlightHydrationRef.current = null;
+      activeUidRef.current = null;
+      updateAuthReady(false);
+      resetSessionUiState();
+    }
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, googleProvider);
@@ -1346,12 +1474,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const first = sanitizePlainText(customFirstName || parts[0] || 'Utente', INPUT_LIMITS.NAME_MAX);
       const last = sanitizePlainText(customLastName || parts.slice(1).join(' ') || '', INPUT_LIMITS.NAME_MAX);
 
+      pendingExplicitAuthFlowRef.current = false;
       const profile = await hydrateAndSyncUser(fbUser, {
         firstName: first,
         lastName: last,
         email: fbUser.email || googleEmail || '',
         provider: 'google',
       });
+      hydrationCompleted = true;
 
       setLastRegistrationNotification(
         `Autenticazione Google completata con successo per ${profile.name}!`
@@ -1361,38 +1491,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Google login error:', err);
       throw err;
+    } finally {
+      pendingExplicitAuthFlowRef.current = false;
+      if (!hydrationCompleted) {
+        if (auth.currentUser) {
+          void hydrateAndSyncUser(auth.currentUser);
+        } else {
+          updateAuthReady(true);
+        }
+      }
     }
   };
 
   const logout = async () => {
-    isCloudHydratedRef.current = false;
-    setIsCloudHydrated(false);
-    setServerAuthState(DEFAULT_SERVER_AUTH_STATE);
+    hydrationSeqRef.current += 1;
+    activeUidRef.current = null;
+    inFlightHydrationRef.current = null;
+    pendingExplicitAuthFlowRef.current = false;
+    resetSessionUiState();
     try {
       await signOut(auth);
     } catch (e) {
       console.error('Signout error:', e);
     }
-    setUser(null);
-    setVocalProfile(null);
-    setSessions([]);
-    const blankRoutine = createInitialBlankRoutine(language === 'en');
-    setCustomRoutines([blankRoutine]);
-    setActiveCustomRoutineIdState(blankRoutine.id);
-    setRecordings([]);
     setLastRegistrationNotification(null);
-    try {
-      localStorage.removeItem('echora_auth_user');
-      clearUnscopedLocalKeys();
-    } catch (e) {
-      console.error(e);
-    }
+    clearUnscopedLocalKeys();
+    updateAuthReady(true);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        isAuthReady,
         isCoach,
         role,
         isCloudHydrated,
